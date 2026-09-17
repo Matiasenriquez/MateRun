@@ -8,16 +8,16 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/api';
 import { Race } from '../../types';
-import { Calendar, MapPin, Users, ChevronRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Calendar, MapPin, Users, ChevronRight, AlertCircle } from 'lucide-react';
 
 export const RunnerDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [races, setRaces] = useState<Race[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-  const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchRaces();
@@ -36,32 +36,9 @@ export const RunnerDashboard: React.FC = () => {
     }
   };
 
-  const handleRegister = async (raceId: string) => {
-    setErrorMsg('');
-    setSuccessMsg('');
-    setProcessingId(raceId);
-    
-    // Por simplicidad en la autoinscripción, pedimos un talle predeterminado
-    // (En una etapa futura se podría abrir un modal).
-    const talleRemera = window.prompt("Ingresa tu talle de remera (XS, S, M, L, XL, XXL):", "M");
-    if (!talleRemera) {
-      setProcessingId(null);
-      return;
-    }
-
-    try {
-      // El backend asignará automáticamente el dorsal menor disponible
-      await api.post('/registrations/self', {
-        raceId,
-        talleRemera: talleRemera.toUpperCase()
-      });
-      setSuccessMsg("¡Inscripción exitosa! Tu dorsal ha sido reservado.");
-      fetchRaces(); // Refrescar para actualizar cupos
-    } catch (error: any) {
-      setErrorMsg(error.response?.data?.message || "Error al intentar inscribirte.");
-    } finally {
-      setProcessingId(null);
-    }
+  // Redirecciona al formulario dedicado de inscripción
+  const handleGoToRegistration = (raceId: string) => {
+    navigate(`/register-race/${raceId}`);
   };
 
   return (
@@ -78,12 +55,6 @@ export const RunnerDashboard: React.FC = () => {
         <div className="p-4 bg-machine-light border border-machine/20 text-machine rounded-lg flex items-start gap-3 shadow-sm">
           <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <p className="font-medium">{errorMsg}</p>
-        </div>
-      )}
-      {successMsg && (
-        <div className="p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg flex items-start gap-3 shadow-sm">
-          <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
-          <p className="font-medium">{successMsg}</p>
         </div>
       )}
 
@@ -135,15 +106,15 @@ export const RunnerDashboard: React.FC = () => {
                 </div>
 
                 <button 
-                  onClick={() => handleRegister(race._id)}
-                  disabled={agotado || processingId === race._id}
+                  onClick={() => handleGoToRegistration(race._id)}
+                  disabled={agotado}
                   className={`w-full py-2.5 font-bold uppercase tracking-wider rounded flex justify-center items-center gap-2 transition-all ${
                     agotado 
                       ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                       : 'bg-machine hover:bg-machine-hover text-white shadow-md shadow-machine/20 hover:shadow-machine/30'
                   }`}
                 >
-                  {processingId === race._id ? 'Procesando...' : (agotado ? 'Sin Cupos' : 'Inscribirme Ahora')}
+                  {agotado ? 'Sin Cupos' : 'Inscribirme Ahora'}
                   {!agotado && <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                 </button>
               </div>

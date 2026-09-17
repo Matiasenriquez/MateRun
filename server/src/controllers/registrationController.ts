@@ -76,11 +76,57 @@ export const registerRunner = async (req: Request, res: Response): Promise<void>
       sexo,
       ciudad,
       provincia,
+      ciudadProvincia,
       contactoEmergencia,
     } = req.body;
 
+    // Normalización de Ciudad y Provincia (soportar tanto campos separados como campo combinado)
+    let finalCiudad = ciudad ? ciudad.trim() : '';
+    let finalProvincia = provincia ? provincia.trim() : '';
+    if ((!finalCiudad || !finalProvincia) && ciudadProvincia) {
+      const parts = ciudadProvincia.split(',');
+      finalCiudad = parts[0]?.trim() || ciudadProvincia.trim();
+      finalProvincia = parts[1]?.trim() || finalCiudad;
+    }
+
+    // Normalización de Sexo: Mapear 'Mujer' a 'Femenino' y 'Hombre' a 'Masculino'
+    let normalizedSexo: 'Masculino' | 'Femenino' = 'Masculino';
+    if (sexo === 'Mujer' || sexo === 'Femenino') {
+      normalizedSexo = 'Femenino';
+    } else if (sexo === 'Hombre' || sexo === 'Masculino') {
+      normalizedSexo = 'Masculino';
+    }
+
+    // Normalización de Contacto de Emergencia: aceptar número telefónico como string u objeto
+    let formattedContactoEmergencia = undefined;
+    if (contactoEmergencia) {
+      if (typeof contactoEmergencia === 'string' && contactoEmergencia.trim() !== '') {
+        formattedContactoEmergencia = {
+          nombre: 'Contacto de Emergencia',
+          telefono: contactoEmergencia.trim(),
+        };
+      } else if (typeof contactoEmergencia === 'object' && contactoEmergencia.telefono) {
+        formattedContactoEmergencia = {
+          nombre: contactoEmergencia.nombre || 'Contacto de Emergencia',
+          telefono: String(contactoEmergencia.telefono).trim(),
+        };
+      }
+    }
+
     // 1. Validar campos requeridos
-    if (!carreraId || !distancia || !talleRemera || !nombre || !apellido || !dni || !email || !fechaNacimiento || !sexo) {
+    if (
+      !carreraId ||
+      !distancia ||
+      !talleRemera ||
+      !nombre ||
+      !apellido ||
+      !dni ||
+      !email ||
+      !fechaNacimiento ||
+      !sexo ||
+      !finalCiudad ||
+      !finalProvincia
+    ) {
       res.status(400).json({
         error: 'Datos incompletos',
         message: 'Por favor complete todos los campos obligatorios del formulario de inscripción',
@@ -151,10 +197,10 @@ export const registerRunner = async (req: Request, res: Response): Promise<void>
         email: email.toLowerCase().trim(),
         telefono: telefono ? telefono.trim() : '',
         fechaNacimiento: new Date(fechaNacimiento),
-        sexo,
-        ciudad: ciudad ? ciudad.trim() : '',
-        provincia: provincia ? provincia.trim() : '',
-        contactoEmergencia,
+        sexo: normalizedSexo,
+        ciudad: finalCiudad,
+        provincia: finalProvincia,
+        contactoEmergencia: formattedContactoEmergencia,
       },
       talleRemera,
       estado: 'Pendiente',

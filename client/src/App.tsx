@@ -17,6 +17,7 @@ import { Login } from './pages/auth/Login';
 import { Dashboard } from './pages/Dashboard';
 import { MyRegistrations } from './pages/corredor/MyRegistrations';
 import { MyStats } from './pages/corredor/MyStats';
+import { RaceRegistrationForm } from './pages/corredor/RaceRegistrationForm';
 import { RaceManagement } from './pages/superadmin/RaceManagement';
 import { UserManagement } from './pages/superadmin/UserManagement';
 
@@ -45,6 +46,10 @@ export const App: React.FC = () => {
             <Route 
               path="/my-stats" 
               element={<ProtectedRoute allowedRoles={['corredor']}><MyStats /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/register-race/:raceId" 
+              element={<ProtectedRoute allowedRoles={['corredor']}><RaceRegistrationForm /></ProtectedRoute>} 
             />
             
             {/* Rutas exclusivas de SuperAdmin */}
