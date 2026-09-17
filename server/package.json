@@ -1,0 +1,39 @@
+{
+  "name": "materun-server",
+  "version": "1.0.0",
+  "description": "Backend API para MateRun - Sistema de gestión de inscripciones para trail running y maratones",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "rimraf dist && tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node-dev --respawn --transpile-only --exit-child src/server.ts",
+    "seed": "ts-node-dev --transpile-only src/seed/seed.ts"
+  },
+  "keywords": [
+    "express",
+    "typescript",
+    "mongoose",
+    "mongodb",
+    "trail-running"
+  ],
+  "author": "MateRun Team",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.8",
+    "@types/node": "^22.10.7",
+    "rimraf": "^6.0.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    /* Destino de la compilación de JavaScript */
+    "target": "ES2022",
+    
+    /* Módulos que generará el compilador (CommonJS es estándar y robusto en Node.js) */
+    "module": "commonjs",
+    "moduleResolution": "node",
+    
+    /* Directorio raíz de los archivos TypeScript fuente */
+    "rootDir": "./src",
+    
+    /* Directorio donde se emitirán los archivos JavaScript compilados */
+    "outDir": "./dist",
+    
+    /* Configuración de tipos y resolución */
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    
+    /* Chequeos estrictos de tipos para evitar errores en tiempo de ejecución */
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noImplicitThis": true,
+    
+    /* Ignorar chequeo en librerías externas de node_modules */
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

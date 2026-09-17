@@ -1,0 +1,29 @@
+{
+  "name": "mate-run",
+  "version": "1.0.0",
+  "description": "Sistema de gestión de inscripciones para trails running y maratones",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && npm install --prefix server && npm install --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:client\"",
+    "build:server": "npm run build --prefix server",
+    "build:client": "npm run build --prefix client",
+    "build": "npm run build:server && npm run build:client",
+    "seed": "npm run seed --prefix server"
+  },
+  "keywords": [
+    "trail-running",
+    "maratones",
+    "gestion-inscripciones",
+    "acreditacion",
+    "mern",
+    "typescript"
+  ],
+  "author": "MateRun Team",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

@@ -1,0 +1,38 @@
+/**
+ * ==============================================================================
+ * ESTILOS GLOBALES - TAILWIND CSS (MateRun)
+ * ==============================================================================
+ * Importación de las directivas base, componentes y utilidades de Tailwind CSS.
+ * El body utiliza por defecto el color Blanco Porcelana (#FFFCF4) definido
+ * en tailwind.config.js, con texto en gris pizarra oscuro.
+ * ==============================================================================
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-porcelain text-slate-800 antialiased min-h-screen flex flex-col;
+  }
+}
+
+/* Clases de utilidad para componentes tipo Card/Panel blanco */
+@layer components {
+  .card-panel {
+    @apply bg-white rounded-lg border border-slate-200 shadow-sm p-5;
+  }
+  
+  .input-field {
+    @apply w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-machine focus:border-machine transition-colors bg-white text-slate-900;
+  }
+
+  .btn-primary {
+    @apply bg-machine hover:bg-machine-hover text-white font-medium rounded-md px-4 py-2 flex items-center justify-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-machine;
+  }
+
+  .btn-secondary {
+    @apply bg-slate-500 hover:bg-slate-600 text-white font-medium rounded-md px-4 py-2 flex items-center justify-center gap-2 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500;
+  }
+}
