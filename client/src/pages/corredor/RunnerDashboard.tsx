@@ -74,6 +74,17 @@ export const RunnerDashboard: React.FC = () => {
   };
 
   /**
+   * Helper para verificar si la fecha de la carrera ya transcurrió o si el evento finalizó.
+   * Considera vencida la carrera si su fecha es anterior al momento actual o si su estado es 'finalizada' / 'cancelada'.
+   */
+  const isRaceExpired = (raceDateStr: string | Date, estado?: string): boolean => {
+    if (estado === 'finalizada' || estado === 'cancelada') return true;
+    const raceDate = new Date(raceDateStr);
+    const now = new Date();
+    return raceDate < now;
+  };
+
+  /**
    * Navega a la vista dedicada del formulario de inscripción para la carrera elegida.
    */
   const handleGoToRegistration = (raceId: string) => {
@@ -119,6 +130,9 @@ export const RunnerDashboard: React.FC = () => {
             // Verificación: ¿El corredor ya está inscripto en esta carrera?
             const isEnrolled = registeredRaceIds.includes(String(race._id));
 
+            // Verificación: ¿La fecha de la carrera ya ha transcurrido?
+            const isPastRace = isRaceExpired(race.fecha, race.estado);
+
             return (
               <div key={race._id} className="card-panel flex flex-col hover:shadow-md transition-shadow group">
                 {/* Cabecera de la tarjeta: Fecha a la izquierda y Estado a la derecha */}
@@ -128,13 +142,23 @@ export const RunnerDashboard: React.FC = () => {
                     <span className="block text-xs uppercase">{fecha.toLocaleString('es-AR', { month: 'short' })}</span>
                   </div>
 
-                  {/* REGLA: Si ya está inscripto, se ELIMINA el texto "Inscripciones Abiertas" */}
+                  {/* REGLA DE ETIQUETA SUPERIOR:
+                      1. Si el usuario ya está inscripto, NO se muestra "Inscripciones Abiertas".
+                      2. Si la fecha ya transcurrió, se indica claramente "Inscripciones cerradas".
+                      3. En caso contrario, se muestra "Inscripciones Abiertas" o "Agotado".
+                  */}
                   {!isEnrolled && (
-                    <div className={`text-xs font-bold px-2 py-1 rounded uppercase tracking-wider ${
-                      agotado ? 'bg-slate-100 text-slate-500' : 'bg-green-100 text-green-700'
-                    }`}>
-                      {agotado ? 'Agotado' : 'Inscripciones Abiertas'}
-                    </div>
+                    isPastRace ? (
+                      <div className="text-xs font-bold px-2 py-1 rounded uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200">
+                        Inscripciones cerradas
+                      </div>
+                    ) : (
+                      <div className={`text-xs font-bold px-2 py-1 rounded uppercase tracking-wider ${
+                        agotado ? 'bg-slate-100 text-slate-500' : 'bg-green-100 text-green-700'
+                      }`}>
+                        {agotado ? 'Agotado' : 'Inscripciones Abiertas'}
+                      </div>
+                    )
                   )}
                 </div>
 
@@ -157,15 +181,18 @@ export const RunnerDashboard: React.FC = () => {
 
                 {/* BOTÓN DE ACCIÓN:
                     - Si ya está inscripto: fondo gris, texto "Inscripto" y deshabilitado.
-                    - Si está agotado: fondo gris claro, texto "Sin Cupos".
+                    - Si la fecha ya transcurrió: fondo gris, texto "Inscripciones cerradas" y deshabilitado.
+                    - Si está agotado: fondo gris claro, texto "Sin Cupos" y deshabilitado.
                     - Si está disponible: fondo rojo machine, texto "Inscribirme Ahora".
                 */}
                 <button 
                   onClick={() => handleGoToRegistration(race._id)}
-                  disabled={agotado || isEnrolled}
+                  disabled={agotado || isEnrolled || isPastRace}
                   className={`w-full py-2.5 font-bold uppercase tracking-wider rounded flex justify-center items-center gap-2 transition-all ${
                     isEnrolled
                       ? 'bg-slate-300 text-slate-600 cursor-not-allowed shadow-none'
+                      : isPastRace
+                      ? 'bg-slate-200 text-slate-500 cursor-not-allowed shadow-none'
                       : agotado 
                       ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                       : 'bg-machine hover:bg-machine-hover text-white shadow-md shadow-machine/20 hover:shadow-machine/30'
@@ -173,6 +200,8 @@ export const RunnerDashboard: React.FC = () => {
                 >
                   {isEnrolled ? (
                     'Inscripto'
+                  ) : isPastRace ? (
+                    'Inscripciones cerradas'
                   ) : agotado ? (
                     'Sin Cupos'
                   ) : (

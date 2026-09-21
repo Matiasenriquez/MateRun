@@ -149,6 +149,15 @@ export const registerRunner = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // Validar que la fecha de realización no haya transcurrido
+    if (new Date(race.fecha) < new Date()) {
+      res.status(400).json({
+        error: 'Inscripciones cerradas',
+        message: 'No es posible inscribirse: la fecha de realización de la carrera ya ha transcurrido',
+      });
+      return;
+    }
+
     // 3. Validar que la distancia seleccionada sea válida para esta carrera
     const distNumber = Number(distancia);
     if (!race.distancias.includes(distNumber)) {

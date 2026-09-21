@@ -65,6 +65,12 @@ export const RaceRegistrationForm: React.FC = () => {
         const raceData: Race = res.data.race;
         setRace(raceData);
 
+        // Si la carrera ya venció su fecha, mostrar advertencia
+        const raceDate = new Date(raceData.fecha);
+        if (raceDate < new Date() || raceData.estado === 'finalizada' || raceData.estado === 'cancelada') {
+          setFormError('Las inscripciones para esta carrera se encuentran cerradas debido a que la fecha de realización ya ha transcurrido.');
+        }
+
         // Preseleccionar la primera distancia disponible si existe
         if (raceData.distancias && raceData.distancias.length > 0) {
           setDistancia(String(raceData.distancias[0]));
@@ -79,6 +85,9 @@ export const RaceRegistrationForm: React.FC = () => {
 
     fetchRaceDetails();
   }, [raceId]);
+
+  // Determinar si la carrera ya ha transcurrido o finalizado
+  const isPastRace = race ? (new Date(race.fecha) < new Date() || race.estado === 'finalizada' || race.estado === 'cancelada') : false;
 
   /**
    * Efecto 2: Precarga los datos personales del usuario logueado.
@@ -110,6 +119,12 @@ export const RaceRegistrationForm: React.FC = () => {
   const handleOpenConfirmation = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
+
+    // Si la carrera venció, impedir el proceso de inscripción
+    if (isPastRace) {
+      setFormError('No es posible inscribirse: las inscripciones se encuentran cerradas porque la fecha de realización ya transcurrió.');
+      return;
+    }
 
     // Validar campos requeridos
     if (
@@ -443,10 +458,21 @@ export const RaceRegistrationForm: React.FC = () => {
           <div className="pt-8 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-3">
             <button
               type="submit"
-              className="btn-primary w-full sm:flex-1 py-3 text-sm font-bold uppercase tracking-wider"
+              disabled={isPastRace}
+              className={`w-full sm:flex-1 py-3 text-sm font-bold uppercase tracking-wider rounded-md flex items-center justify-center gap-2 transition-colors ${
+                isPastRace
+                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                  : 'btn-primary'
+              }`}
             >
-              <Plus className="w-5 h-5" strokeWidth={2.5} />
-              Aceptar
+              {isPastRace ? (
+                'Inscripciones cerradas'
+              ) : (
+                <>
+                  <Plus className="w-5 h-5" strokeWidth={2.5} />
+                  Aceptar
+                </>
+              )}
             </button>
             <button
               type="button"
