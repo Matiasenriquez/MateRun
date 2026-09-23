@@ -20,6 +20,7 @@ import { MyStats } from './pages/corredor/MyStats';
 import { RaceRegistrationForm } from './pages/corredor/RaceRegistrationForm';
 import { RaceManagement } from './pages/superadmin/RaceManagement';
 import { UserManagement } from './pages/superadmin/UserManagement';
+import { RaceRoster } from './pages/superadmin/RaceRoster';
 
 export const App: React.FC = () => {
   return (
@@ -60,6 +61,10 @@ export const App: React.FC = () => {
             <Route 
               path="/admin/users" 
               element={<ProtectedRoute allowedRoles={['superadmin']}><UserManagement /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/admin/race-roster/:raceId" 
+              element={<ProtectedRoute allowedRoles={['superadmin']}><RaceRoster /></ProtectedRoute>} 
             />
           </Route>
           
