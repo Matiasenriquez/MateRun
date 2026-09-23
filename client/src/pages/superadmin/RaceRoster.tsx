@@ -9,13 +9,30 @@
  * 1. Acceso restringido para el rol SuperAdmin.
  * 2. Carga dinámica según el identificador de la carrera en la URL (/admin/race-roster/:raceId).
  * 3. Botón explícito "Volver" para retornar al Panel de Control sin depender del navegador.
- * 4. Tabla completa y organizada con las 13 columnas de datos solicitadas en la inscripción,
- *    con "Nombre" y "Apellido" en columnas independientes.
- * 5. Buscador interactivo en tiempo real para filtrar por Nombre, Apellido, DNI o N° de Dorsal.
+ * 4. Rediseño de la columna "Estado":
+ *    - Reubicada en la primera posición de la tabla (antes de "Dorsal").
+ *    - Estados permitidos: 'Pendiente', 'Acreditado', 'Retira y no corre' (se eliminó 'Baja').
+ *    - Estado inicial predeterminado: 'Pendiente'.
+ *    - Al pasar el cursor sobre 'Pendiente', se despliegan automáticamente:
+ *      * "Acreditar"
+ *      * "Retira y no corre"
+ *    - Popup de confirmación para "Acreditar":
+ *      Pregunta: "¿Desea acreditar al corredor?"
+ *      Botones: "Aceptar" y "Cancelar"
+ *      Aviso de confirmación al aceptar: "Se registró al corredor como: Acreditado."
+ *    - Popup de confirmación para "Retira y no corre":
+ *      Pregunta: "¿Desea registrar al corredor como “Retira y no corre”?"
+ *      Botones: "Aceptar" y "Cancelar"
+ *      Aviso de confirmación al aceptar: "Se registró al corredor como: Retira y no corre."
+ *    - Al pasar el cursor sobre 'Acreditado' o 'Retira y no corre', muestra únicamente:
+ *      * "Editar Estado"
+ *      Al hacer clic, se despliegan nuevamente "Acreditar" y "Retira y no corre" con el mismo flujo.
+ * 5. Columnas independientes para "Nombre" y "Apellido".
+ * 6. Buscador interactivo en tiempo real para filtrar por Nombre, Apellido, DNI o N° de Dorsal.
  * ==============================================================================
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/api';
 import { Race } from '../../types';
@@ -27,8 +44,24 @@ import {
   MapPin, 
   FileSpreadsheet, 
   Clock, 
-  Tag
+  Tag,
+  CheckCircle2,
+  Package,
+  Edit2,
+  X,
+  Loader2
 } from 'lucide-react';
+
+/**
+ * Interfaz para el estado del popup modal de confirmación de cambio de estado
+ */
+interface ConfirmModalState {
+  isOpen: boolean;
+  registrationId: string;
+  runnerName: string;
+  targetState: 'Acreditado' | 'Retira y no corre';
+  message: string;
+}
 
 export const RaceRoster: React.FC = () => {
   // Obtenemos el identificador de la carrera desde los parámetros de la URL
@@ -48,6 +81,34 @@ export const RaceRoster: React.FC = () => {
 
   // Estados para alertas o mensajes de error
   const [errorMsg, setErrorMsg] = useState<string>('');
+
+  // --------------------------------------------------------------------------
+  // Estados para la gestión interactiva de la columna "Estado"
+  // --------------------------------------------------------------------------
+  // Identificador de la inscripción sobre la cual el cursor del mouse está posicionado
+  const [hoveredRegId, setHoveredRegId] = useState<string | null>(null);
+
+  // Identificador de la inscripción en la cual se hizo clic en "Editar Estado"
+  const [activeEditRegId, setActiveEditRegId] = useState<string | null>(null);
+
+  // Estado del modal de confirmación
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Aviso de confirmación posterior a la modificación del estado
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Limpieza de temporizadores de avisos de confirmación al desmontar
+   */
+  useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) {
+        clearTimeout(noticeTimerRef.current);
+      }
+    };
+  }, []);
 
   /**
    * Efecto 1: Carga los datos de la carrera y su lista de corredores inscriptos
@@ -106,10 +167,92 @@ export const RaceRoster: React.FC = () => {
   };
 
   /**
-   * Filtrado en memoria de la tabla según el texto ingresado en el buscador.
-   * Evalúa coincidencias en Nombre, Apellido, DNI o N° de Dorsal.
+   * Abre el popup modal de confirmación con las preguntas y condiciones exactas requeridas:
+   * - Acreditar: "¿Desea acreditar al corredor?"
+   * - Retira y no corre: "¿Desea registrar al corredor como “Retira y no corre”?"
    */
-  const filteredRegistrations = registrations.filter((reg) => {
+  const handleOpenConfirm = (reg: any, targetState: 'Acreditado' | 'Retira y no corre') => {
+    const d = reg.datosCorredor || {};
+    const runnerName = `${d.nombre || ''} ${d.apellido || ''}`.trim();
+
+    const message = targetState === 'Acreditado'
+      ? '¿Desea acreditar al corredor?'
+      : '¿Desea registrar al corredor como “Retira y no corre”?';
+
+    setConfirmModal({
+      isOpen: true,
+      registrationId: reg._id,
+      runnerName,
+      targetState,
+      message,
+    });
+  };
+
+  /**
+   * Confirma la modificación del estado del corredor:
+   * 1. Llama al endpoint PUT /api/registrations/:id/accreditation
+   * 2. Actualiza reactivamente el estado local en la tabla
+   * 3. Muestra el aviso de confirmación solicitado:
+   *    "Se registró al corredor como: Acreditado." o
+   *    "Se registró al corredor como: Retira y no corre."
+   */
+  const handleConfirmStateChange = async () => {
+    if (!confirmModal) return;
+    const { registrationId, targetState } = confirmModal;
+
+    try {
+      setIsSubmitting(true);
+
+      // Llamada al endpoint oficial de acreditación del backend
+      await api.put(`/registrations/${registrationId}/accreditation`, {
+        nuevoEstado: targetState,
+      });
+
+      // Actualizar la lista local de inscripciones
+      setRegistrations((prev) =>
+        prev.map((r) =>
+          r._id === registrationId ? { ...r, estado: targetState } : r
+        )
+      );
+
+      // Mostrar la leyenda de confirmación requerida
+      setSuccessNotice(`Se registró al corredor como: ${targetState}.`);
+
+      // Auto-ocultar el aviso tras 6 segundos
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+      noticeTimerRef.current = setTimeout(() => {
+        setSuccessNotice(null);
+      }, 6000);
+
+      // Cerrar el modal y resetear estados interactivos
+      setConfirmModal(null);
+      setActiveEditRegId(null);
+      setHoveredRegId(null);
+    } catch (err: any) {
+      console.error('Error al actualizar el estado del corredor:', err);
+      alert(err?.response?.data?.message || 'Error al actualizar el estado del corredor.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /**
+   * Cancela la modificación del estado:
+   * Cierra el modal y deja al corredor en su estado actual sin ningún cambio.
+   */
+  const handleCancelStateChange = () => {
+    setConfirmModal(null);
+    setActiveEditRegId(null);
+    setHoveredRegId(null);
+  };
+
+  /**
+   * Filtramos registros eliminando el estado 'Baja' (el cual ya no se contempla)
+   * y aplicamos el término de búsqueda en tiempo real.
+   */
+  const activeRegistrations = registrations.filter((reg) => reg.estado !== 'Baja');
+
+  const filteredRegistrations = activeRegistrations.filter((reg) => {
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase().trim();
     const datos = reg.datosCorredor || {};
@@ -117,12 +260,14 @@ export const RaceRoster: React.FC = () => {
     const apellido = (datos.apellido || '').toLowerCase();
     const dni = (datos.dni || '').toLowerCase();
     const dorsal = String(reg.dorsal || '');
+    const estado = (reg.estado || 'Pendiente').toLowerCase();
 
     return (
       nombre.includes(term) ||
       apellido.includes(term) ||
       dni.includes(term) ||
-      dorsal.includes(term)
+      dorsal.includes(term) ||
+      estado.includes(term)
     );
   });
 
@@ -133,7 +278,7 @@ export const RaceRoster: React.FC = () => {
       <div>
         <button
           onClick={handleGoBack}
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4 text-machine" />
           <span>Volver al Panel de Control</span>
@@ -188,14 +333,14 @@ export const RaceRoster: React.FC = () => {
             <div>
               <p className="text-[10px] uppercase font-bold text-slate-400">Total inscriptos</p>
               <p className="text-xl font-black text-slate-800">
-                {registrations.length} <span className="text-xs font-semibold text-slate-400">/ {race.cupoMaximo} cupos</span>
+                {activeRegistrations.length} <span className="text-xs font-semibold text-slate-400">/ {race.cupoMaximo} cupos</span>
               </p>
             </div>
           </div>
         </div>
       ) : null}
 
-      {/* ALERTA DE ERROR */}
+      {/* ALERTA DE ERROR GLOBAL */}
       {errorMsg && (
         <div className="p-4 bg-machine-light border border-machine/20 text-machine rounded-xl text-sm font-semibold shadow-sm">
           {errorMsg}
@@ -215,7 +360,7 @@ export const RaceRoster: React.FC = () => {
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Visualiza en detalle todos los datos provistos en el formulario de inscripción.
+              Gestiona el estado de acreditación de cada corredor y consulta sus datos completos.
             </p>
           </div>
 
@@ -226,11 +371,37 @@ export const RaceRoster: React.FC = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por nombre, apellido, DNI o dorsal..."
+              placeholder="Buscar por nombre, apellido, DNI, dorsal o estado..."
               className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine transition-all"
             />
           </div>
         </div>
+
+        {/* AVISO DE CONFIRMACIÓN DE ACCIÓN EXITOSA */}
+        {successNotice && (
+          <div className="mx-5 sm:mx-6 mt-4 p-4 rounded-xl border flex items-center justify-between shadow-xs transition-all animate-in fade-in slide-in-from-top-2 bg-emerald-50 border-emerald-200 text-emerald-800">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                  Operación Registrada
+                </p>
+                <p className="text-xs font-bold text-emerald-700 mt-0.5">
+                  {successNotice}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setSuccessNotice(null)}
+              className="text-emerald-500 hover:text-emerald-800 p-1.5 rounded-lg transition-colors cursor-pointer"
+              title="Cerrar aviso"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* CONTENIDO DE LA TABLA */}
         {isRegsLoading ? (
@@ -252,33 +423,54 @@ export const RaceRoster: React.FC = () => {
             </p>
           </div>
         ) : (
-          /* TABLA CON LAS 13 COLUMNAS REQUERIDAS (Nombre y Apellido independientes) */
-          <div className="overflow-x-auto">
+          /* TABLA CON "ESTADO" EN LA PRIMERA COLUMNA Y NOMBRE/APELLIDO INDEPENDIENTES */
+          <div className="overflow-x-auto min-h-[340px] pb-12">
             <table className="w-full text-left text-xs text-slate-600 whitespace-nowrap">
               {/* ENCABEZADOS DE COLUMNA */}
               <thead className="bg-slate-50 border-b border-slate-100 text-[11px] uppercase tracking-wider text-slate-500 font-bold select-none">
                 <tr>
+                  {/* 1. Columna ESTADO trasladada a la primera posición */}
+                  <th className="px-4 py-3.5 text-center min-w-[190px]">Estado</th>
+                  {/* 2. Dorsal */}
                   <th className="px-4 py-3.5 text-center">Dorsal</th>
+                  {/* 3. Nombre */}
                   <th className="px-4 py-3.5">Nombre</th>
+                  {/* 4. Apellido */}
                   <th className="px-4 py-3.5">Apellido</th>
+                  {/* 5. DNI */}
                   <th className="px-4 py-3.5">DNI</th>
+                  {/* 6. Correo electrónico */}
                   <th className="px-4 py-3.5">Correo electrónico</th>
+                  {/* 7. Teléfono */}
                   <th className="px-4 py-3.5">Teléfono</th>
+                  {/* 8. Contacto de emergencia */}
                   <th className="px-4 py-3.5">Contacto emergencia</th>
+                  {/* 9. Sexo */}
                   <th className="px-4 py-3.5 text-center">Sexo</th>
+                  {/* 10. Fecha de nacimiento */}
                   <th className="px-4 py-3.5 text-center">Fecha Nac.</th>
+                  {/* 11. Distancia */}
                   <th className="px-4 py-3.5 text-center">Distancia</th>
+                  {/* 12. Ciudad y Provincia */}
                   <th className="px-4 py-3.5">Ciudad y Provincia</th>
+                  {/* 13. Talle de remera */}
                   <th className="px-4 py-3.5 text-center">Talle</th>
-                  <th className="px-4 py-3.5 text-center">Estado</th>
                 </tr>
               </thead>
 
               {/* FILAS DE CORREDORES */}
               <tbody className="divide-y divide-slate-100">
-                {filteredRegistrations.map((reg) => {
+                {filteredRegistrations.map((reg, index) => {
                   const d = reg.datosCorredor || {};
                   
+                  // Estado actual normalizado (solo 'Pendiente', 'Acreditado', 'Retira y no corre')
+                  const estadoActual = (reg.estado && reg.estado !== 'Baja') ? reg.estado : 'Pendiente';
+                  const isHovered = hoveredRegId === reg._id;
+                  const isEditing = activeEditRegId === reg._id;
+                  
+                  // Si estamos en las últimas filas de una lista numerosa, desplegamos hacia arriba para no crear scroll
+                  const openUpwards = index >= filteredRegistrations.length - 2 && filteredRegistrations.length > 3;
+
                   // Formatear contacto de emergencia (puede ser objeto {telefono, nombre} o string directo)
                   const emergencyPhone = typeof d.contactoEmergencia === 'object'
                     ? d.contactoEmergencia?.telefono || '-'
@@ -287,80 +479,166 @@ export const RaceRoster: React.FC = () => {
                   return (
                     <tr key={reg._id} className="hover:bg-slate-50/70 transition-colors">
                       
-                      {/* 1. Dorsal */}
+                      {/* 1. ESTADO (PRIMERA COLUMNA CON INTERACCIÓN HOVER Y MODIFICACIÓN) */}
+                      <td className="px-4 py-3 text-center relative">
+                        <div 
+                          className="relative inline-block text-center py-0.5"
+                          onMouseEnter={() => setHoveredRegId(reg._id)}
+                          onMouseLeave={() => {
+                            setHoveredRegId(null);
+                            if (activeEditRegId === reg._id) {
+                              setActiveEditRegId(null);
+                            }
+                          }}
+                        >
+                          {/* Badge visual del estado actual */}
+                          <div
+                            onClick={() => {
+                              // Soporte para dispositivos táctiles o clic directo para editar
+                              if (estadoActual !== 'Pendiente') {
+                                setActiveEditRegId(prev => prev === reg._id ? null : reg._id);
+                              }
+                            }}
+                            className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full cursor-pointer select-none transition-all shadow-2xs ${
+                              estadoActual === 'Acreditado'
+                                ? 'bg-green-100 text-green-700 border border-green-200'
+                                : estadoActual === 'Retira y no corre'
+                                ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                                : 'bg-amber-100 text-amber-700 border border-amber-200'
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              estadoActual === 'Acreditado'
+                                ? 'bg-green-600'
+                                : estadoActual === 'Retira y no corre'
+                                ? 'bg-blue-600'
+                                : 'bg-amber-500'
+                            }`} />
+                            <span>{estadoActual}</span>
+                          </div>
+
+                          {/* Menú desplegable interactivo según el estado del corredor */}
+                          {isHovered && (
+                            <div 
+                              className={`absolute left-1/2 -translate-x-1/2 z-40 min-w-[170px] ${
+                                openUpwards ? 'bottom-full pb-1.5' : 'top-full pt-1.5'
+                              } animate-in fade-in zoom-in-95 duration-150`}
+                            >
+                              <div className="bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 flex flex-col gap-1.5 text-xs text-left">
+                                
+                                {/* CASO A: Estado 'Pendiente' O modo de edición activo: Muestra 'Acreditar' y 'Retira y no corre' */}
+                                {(estadoActual === 'Pendiente' || isEditing) ? (
+                                  <>
+                                    {/* Opción 1: Acreditar */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenConfirm(reg, 'Acreditado');
+                                      }}
+                                      className="w-full flex items-center justify-start gap-2 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      <span>Acreditar</span>
+                                    </button>
+
+                                    {/* Opción 2: Retira y no corre */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenConfirm(reg, 'Retira y no corre');
+                                      }}
+                                      className="w-full flex items-center justify-start gap-2 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      <Package className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                      <span>Retira y no corre</span>
+                                    </button>
+                                  </>
+                                ) : (
+                                  /* CASO B: Estado 'Acreditado' o 'Retira y no corre': Muestra únicamente 'Editar Estado' */
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveEditRegId(reg._id);
+                                    }}
+                                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                                    <span>Editar Estado</span>
+                                  </button>
+                                )}
+
+                              </div>
+                            </div>
+                          )}
+
+                        </div>
+                      </td>
+
+                      {/* 2. Dorsal */}
                       <td className="px-4 py-3 text-center">
                         <span className="font-black text-machine bg-machine-light px-2.5 py-1 rounded-md text-xs font-mono">
                           {reg.dorsal ? `#${reg.dorsal}` : '-'}
                         </span>
                       </td>
 
-                      {/* 2. Nombre (Columna independiente) */}
+                      {/* 3. Nombre (Columna independiente) */}
                       <td className="px-4 py-3 font-bold text-slate-800">
                         {d.nombre || '-'}
                       </td>
 
-                      {/* 3. Apellido (Columna independiente) */}
+                      {/* 4. Apellido (Columna independiente) */}
                       <td className="px-4 py-3 font-bold text-slate-800">
                         {d.apellido || '-'}
                       </td>
 
-                      {/* 4. DNI */}
+                      {/* 5. DNI */}
                       <td className="px-4 py-3 font-medium text-slate-700">
                         {d.dni || '-'}
                       </td>
 
-                      {/* 5. Correo electrónico */}
+                      {/* 6. Correo electrónico */}
                       <td className="px-4 py-3 text-slate-600">
                         {d.email || '-'}
                       </td>
 
-                      {/* 6. Teléfono */}
+                      {/* 7. Teléfono */}
                       <td className="px-4 py-3 text-slate-600 font-mono">
                         {d.telefono || '-'}
                       </td>
 
-                      {/* 7. Contacto de emergencia */}
+                      {/* 8. Contacto de emergencia */}
                       <td className="px-4 py-3 text-slate-600 font-mono font-medium">
                         {emergencyPhone}
                       </td>
 
-                      {/* 8. Sexo */}
+                      {/* 9. Sexo */}
                       <td className="px-4 py-3 text-center text-slate-700">
                         {d.sexo || '-'}
                       </td>
 
-                      {/* 9. Fecha de nacimiento */}
+                      {/* 10. Fecha de nacimiento */}
                       <td className="px-4 py-3 text-center text-slate-600 font-medium">
                         {formatDate(d.fechaNacimiento)}
                       </td>
 
-                      {/* 10. Distancia a correr */}
+                      {/* 11. Distancia a correr */}
                       <td className="px-4 py-3 text-center font-bold text-slate-800">
                         {reg.distancia} km
                       </td>
 
-                      {/* 11. Ciudad y Provincia */}
+                      {/* 12. Ciudad y Provincia */}
                       <td className="px-4 py-3 text-slate-600">
                         {d.ciudad || ''}
                         {d.provincia && d.provincia !== d.ciudad ? `, ${d.provincia}` : ''}
                       </td>
 
-                      {/* 12. Talle de remera */}
+                      {/* 13. Talle de remera */}
                       <td className="px-4 py-3 text-center">
                         <span className="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded text-[11px]">
                           {reg.talleRemera || '-'}
-                        </span>
-                      </td>
-
-                      {/* 13. Estado */}
-                      <td className="px-4 py-3 text-center">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
-                          reg.estado === 'Acreditado' ? 'bg-green-100 text-green-700' :
-                          reg.estado === 'Pendiente' ? 'bg-amber-100 text-amber-700' :
-                          reg.estado === 'Retira y no corre' ? 'bg-blue-100 text-blue-700' :
-                          'bg-slate-100 text-slate-600'
-                        }`}>
-                          {reg.estado || 'Pendiente'}
                         </span>
                       </td>
 
@@ -375,7 +653,7 @@ export const RaceRoster: React.FC = () => {
         {/* PIE DE LA TABLA CON CONTADOR TOTAL */}
         <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex items-center justify-between">
           <span>Mostrando {filteredRegistrations.length} inscriptos</span>
-          {registrations.length > 0 && (
+          {activeRegistrations.length > 0 && (
             <span className="flex items-center gap-1.5 text-slate-400">
               <Clock className="w-3.5 h-3.5" />
               Actualizado en tiempo real
@@ -384,6 +662,71 @@ export const RaceRoster: React.FC = () => {
         </div>
 
       </div>
+
+      {/* ========================================================================= */}
+      {/* POPUP MODAL DE CONFIRMACIÓN DE CAMBIO DE ESTADO                           */}
+      {/* ========================================================================= */}
+      {confirmModal && confirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 text-center animate-in zoom-in-95 duration-150">
+            
+            {/* Ícono representativo */}
+            <div className={`w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-4 ${
+              confirmModal.targetState === 'Acreditado' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
+            }`}>
+              {confirmModal.targetState === 'Acreditado' ? (
+                <CheckCircle2 className="w-8 h-8" />
+              ) : (
+                <Package className="w-8 h-8" />
+              )}
+            </div>
+
+            {/* Mensaje de confirmación exacto */}
+            <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">
+              {confirmModal.message}
+            </h3>
+
+            {/* Subtítulo informativo del corredor */}
+            {confirmModal.runnerName && (
+              <p className="text-xs text-slate-500 mt-2 font-medium">
+                Corredor: <span className="font-bold text-slate-700">{confirmModal.runnerName}</span>
+              </p>
+            )}
+
+            {/* Botones de acción "Aceptar" y "Cancelar" */}
+            <div className="flex items-center justify-center gap-3 mt-6">
+              <button
+                type="button"
+                onClick={handleCancelStateChange}
+                disabled={isSubmitting}
+                className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmStateChange}
+                disabled={isSubmitting}
+                className={`px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50 ${
+                  confirmModal.targetState === 'Acreditado'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                }`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <span>Aceptar</span>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
