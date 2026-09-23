@@ -47,7 +47,13 @@ export const Login: React.FC = () => {
   // Ayudante rápido para desarrollo
   const fillTestCredentials = (role: 'corredor' | 'admin' | 'superadmin') => {
     setEmail(`${role}@materun.com`);
-    setPassword(role.charAt(0).toUpperCase() + role.slice(1) + '123!');
+    if (role === 'superadmin') {
+      setPassword('SuperAdmin123!');
+    } else if (role === 'admin') {
+      setPassword('Admin123!');
+    } else {
+      setPassword('Corredor123!');
+    }
   };
 
   return (
