@@ -9,26 +9,29 @@
  * 1. Acceso restringido para el rol SuperAdmin.
  * 2. Carga dinámica según el identificador de la carrera en la URL (/admin/race-roster/:raceId).
  * 3. Botón explícito "Volver" para retornar al Panel de Control sin depender del navegador.
- * 4. Rediseño de la columna "Estado":
+ * 4. Rediseño y gestión de la columna "Estado":
  *    - Reubicada en la primera posición de la tabla (antes de "Dorsal").
  *    - Estados permitidos: 'Pendiente', 'Acreditado', 'Retira y no corre' (se eliminó 'Baja').
  *    - Estado inicial predeterminado: 'Pendiente'.
  *    - Al pasar el cursor sobre 'Pendiente', se despliegan automáticamente:
  *      * "Acreditar"
  *      * "Retira y no corre"
- *    - Popup de confirmación para "Acreditar":
- *      Pregunta: "¿Desea acreditar al corredor?"
- *      Botones: "Aceptar" y "Cancelar"
- *      Aviso de confirmación al aceptar: "Se registró al corredor como: Acreditado."
- *    - Popup de confirmación para "Retira y no corre":
- *      Pregunta: "¿Desea registrar al corredor como “Retira y no corre”?"
- *      Botones: "Aceptar" y "Cancelar"
- *      Aviso de confirmación al aceptar: "Se registró al corredor como: Retira y no corre."
  *    - Al pasar el cursor sobre 'Acreditado' o 'Retira y no corre', muestra únicamente:
  *      * "Editar Estado"
- *      Al hacer clic, se despliegan nuevamente "Acreditar" y "Retira y no corre" con el mismo flujo.
- * 5. Columnas independientes para "Nombre" y "Apellido".
- * 6. Buscador interactivo en tiempo real para filtrar por Nombre, Apellido, DNI o N° de Dorsal.
+ *    - Al hacer clic en "Editar Estado", se vuelven a desplegar las 3 opciones:
+ *      * "Pendiente" (restablece al estado inicial)
+ *      * "Acreditar"
+ *      * "Retira y no corre"
+ *    - Flujo de popup de confirmación con textos exactos:
+ *      * Pendiente: "¿Desea registrar al corredor nuevamente como “Pendiente”?"
+ *        Aviso: "Se registró al corredor como: Pendiente."
+ *      * Acreditar: "¿Desea acreditar al corredor?"
+ *        Aviso: "Se registró al corredor como: Acreditado."
+ *      * Retira y no corre: "¿Desea registrar al corredor como “Retira y no corre”?"
+ *        Aviso: "Se registró al corredor como: Retira y no corre."
+ * 5. Buscador optimizado e insensible a mayúsculas, minúsculas, acentos y tildes
+ *    (ej. "Jose" encuentra "José", "MARTA" encuentra "Marta").
+ * 6. Columnas independientes para "Nombre" y "Apellido".
  * ==============================================================================
  */
 
@@ -48,6 +51,7 @@ import {
   CheckCircle2,
   Package,
   Edit2,
+  RotateCcw,
   X,
   Loader2
 } from 'lucide-react';
@@ -59,7 +63,7 @@ interface ConfirmModalState {
   isOpen: boolean;
   registrationId: string;
   runnerName: string;
-  targetState: 'Acreditado' | 'Retira y no corre';
+  targetState: 'Pendiente' | 'Acreditado' | 'Retira y no corre';
   message: string;
 }
 
@@ -167,17 +171,45 @@ export const RaceRoster: React.FC = () => {
   };
 
   /**
+   * Helper: Normaliza texto removiendo diacríticos/acentos/tildes y convirtiendo a minúsculas
+   * para búsquedas totalmente insensibles a mayúsculas, minúsculas y tildes.
+   * Ejemplos:
+   * "José" -> "jose"
+   * "Jose" -> "jose"
+   * "MARTA" -> "marta"
+   * "Martín" -> "martin"
+   */
+  const normalizeText = (text: string | null | undefined): string => {
+    if (!text) return '';
+    return text
+      .toString()
+      .normalize('NFD') // Descompone caracteres en letra base + marca de acento
+      .replace(/[\u0300-\u036f]/g, '') // Elimina todas las marcas de acento/tilde
+      .toLowerCase()
+      .trim();
+  };
+
+  /**
    * Abre el popup modal de confirmación con las preguntas y condiciones exactas requeridas:
    * - Acreditar: "¿Desea acreditar al corredor?"
    * - Retira y no corre: "¿Desea registrar al corredor como “Retira y no corre”?"
+   * - Pendiente: "¿Desea registrar al corredor nuevamente como “Pendiente”?"
    */
-  const handleOpenConfirm = (reg: any, targetState: 'Acreditado' | 'Retira y no corre') => {
+  const handleOpenConfirm = (
+    reg: any, 
+    targetState: 'Pendiente' | 'Acreditado' | 'Retira y no corre'
+  ) => {
     const d = reg.datosCorredor || {};
     const runnerName = `${d.nombre || ''} ${d.apellido || ''}`.trim();
 
-    const message = targetState === 'Acreditado'
-      ? '¿Desea acreditar al corredor?'
-      : '¿Desea registrar al corredor como “Retira y no corre”?';
+    let message = '';
+    if (targetState === 'Pendiente') {
+      message = '¿Desea registrar al corredor nuevamente como “Pendiente”?';
+    } else if (targetState === 'Acreditado') {
+      message = '¿Desea acreditar al corredor?';
+    } else {
+      message = '¿Desea registrar al corredor como “Retira y no corre”?';
+    }
 
     setConfirmModal({
       isOpen: true,
@@ -193,6 +225,7 @@ export const RaceRoster: React.FC = () => {
    * 1. Llama al endpoint PUT /api/registrations/:id/accreditation
    * 2. Actualiza reactivamente el estado local en la tabla
    * 3. Muestra el aviso de confirmación solicitado:
+   *    "Se registró al corredor como: Pendiente." o
    *    "Se registró al corredor como: Acreditado." o
    *    "Se registró al corredor como: Retira y no corre."
    */
@@ -248,26 +281,33 @@ export const RaceRoster: React.FC = () => {
 
   /**
    * Filtramos registros eliminando el estado 'Baja' (el cual ya no se contempla)
-   * y aplicamos el término de búsqueda en tiempo real.
+   * y aplicamos el buscador normalizado e insensible a mayúsculas y acentos.
    */
   const activeRegistrations = registrations.filter((reg) => reg.estado !== 'Baja');
 
   const filteredRegistrations = activeRegistrations.filter((reg) => {
     if (!searchTerm.trim()) return true;
-    const term = searchTerm.toLowerCase().trim();
+    const term = normalizeText(searchTerm);
     const datos = reg.datosCorredor || {};
-    const nombre = (datos.nombre || '').toLowerCase();
-    const apellido = (datos.apellido || '').toLowerCase();
-    const dni = (datos.dni || '').toLowerCase();
-    const dorsal = String(reg.dorsal || '');
-    const estado = (reg.estado || 'Pendiente').toLowerCase();
+
+    const nombre = normalizeText(datos.nombre);
+    const apellido = normalizeText(datos.apellido);
+    const dni = normalizeText(datos.dni);
+    const dorsal = normalizeText(String(reg.dorsal || ''));
+    const estado = normalizeText(reg.estado || 'Pendiente');
+    const email = normalizeText(datos.email);
+    const ciudad = normalizeText(datos.ciudad);
+    const provincia = normalizeText(datos.provincia);
 
     return (
       nombre.includes(term) ||
       apellido.includes(term) ||
       dni.includes(term) ||
       dorsal.includes(term) ||
-      estado.includes(term)
+      estado.includes(term) ||
+      email.includes(term) ||
+      ciudad.includes(term) ||
+      provincia.includes(term)
     );
   });
 
@@ -350,7 +390,7 @@ export const RaceRoster: React.FC = () => {
       {/* CONTENEDOR DE LA TABLA DE INSCRIPTOS */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         
-        {/* BARRA SUPERIOR DE LA TABLA CON BUSCADOR */}
+        {/* BARRA SUPERIOR DE LA TABLA CON BUSCADOR INSENSIBLE A MAYÚSCULAS Y TILDES */}
         <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -364,7 +404,7 @@ export const RaceRoster: React.FC = () => {
             </p>
           </div>
 
-          {/* Buscador en tiempo real */}
+          {/* Buscador optimizado */}
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -379,23 +419,39 @@ export const RaceRoster: React.FC = () => {
 
         {/* AVISO DE CONFIRMACIÓN DE ACCIÓN EXITOSA */}
         {successNotice && (
-          <div className="mx-5 sm:mx-6 mt-4 p-4 rounded-xl border flex items-center justify-between shadow-xs transition-all animate-in fade-in slide-in-from-top-2 bg-emerald-50 border-emerald-200 text-emerald-800">
+          <div className={`mx-5 sm:mx-6 mt-4 p-4 rounded-xl border flex items-center justify-between shadow-xs transition-all animate-in fade-in slide-in-from-top-2 ${
+            successNotice.includes('Pendiente')
+              ? 'bg-amber-50 border-amber-200 text-amber-800'
+              : successNotice.includes('Retira y no corre')
+              ? 'bg-blue-50 border-blue-200 text-blue-800'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+          }`}>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
-                <CheckCircle2 className="w-5 h-5" />
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                successNotice.includes('Pendiente')
+                  ? 'bg-amber-100 text-amber-600'
+                  : successNotice.includes('Retira y no corre')
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'bg-emerald-100 text-emerald-600'
+              }`}>
+                {successNotice.includes('Pendiente') ? (
+                  <RotateCcw className="w-4 h-4" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5" />
+                )}
               </div>
               <div>
-                <p className="text-xs font-black uppercase tracking-wider text-emerald-900">
+                <p className="text-xs font-black uppercase tracking-wider">
                   Operación Registrada
                 </p>
-                <p className="text-xs font-bold text-emerald-700 mt-0.5">
+                <p className="text-xs font-bold mt-0.5">
                   {successNotice}
                 </p>
               </div>
             </div>
             <button
               onClick={() => setSuccessNotice(null)}
-              className="text-emerald-500 hover:text-emerald-800 p-1.5 rounded-lg transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg transition-colors cursor-pointer opacity-70 hover:opacity-100"
               title="Cerrar aviso"
             >
               <X className="w-4 h-4" />
@@ -418,13 +474,13 @@ export const RaceRoster: React.FC = () => {
             </h3>
             <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
               {searchTerm 
-                ? 'Prueba modificando los términos del buscador.' 
+                ? 'Prueba modificando los términos del buscador (no distingue mayúsculas ni tildes).' 
                 : 'A medida que los corredores completen el formulario de inscripción, se reflejarán automáticamente en esta tabla.'}
             </p>
           </div>
         ) : (
           /* TABLA CON "ESTADO" EN LA PRIMERA COLUMNA Y NOMBRE/APELLIDO INDEPENDIENTES */
-          <div className="overflow-x-auto min-h-[340px] pb-12">
+          <div className="overflow-x-auto min-h-[360px] pb-14">
             <table className="w-full text-left text-xs text-slate-600 whitespace-nowrap">
               {/* ENCABEZADOS DE COLUMNA */}
               <thead className="bg-slate-50 border-b border-slate-100 text-[11px] uppercase tracking-wider text-slate-500 font-bold select-none">
@@ -524,12 +580,12 @@ export const RaceRoster: React.FC = () => {
                                 openUpwards ? 'bottom-full pb-1.5' : 'top-full pt-1.5'
                               } animate-in fade-in zoom-in-95 duration-150`}
                             >
-                              <div className="bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 flex flex-col gap-1.5 text-xs text-left">
+                              <div className="bg-white rounded-xl shadow-xl border border-slate-200 p-1.5 flex flex-col gap-1 text-xs text-left">
                                 
-                                {/* CASO A: Estado 'Pendiente' O modo de edición activo: Muestra 'Acreditar' y 'Retira y no corre' */}
-                                {(estadoActual === 'Pendiente' || isEditing) ? (
+                                {/* CASO A: Estado 'Pendiente' -> Muestra opciones 'Acreditar' y 'Retira y no corre' */}
+                                {estadoActual === 'Pendiente' ? (
                                   <>
-                                    {/* Opción 1: Acreditar */}
+                                    {/* Opción Acreditar */}
                                     <button
                                       type="button"
                                       onClick={(e) => {
@@ -542,7 +598,7 @@ export const RaceRoster: React.FC = () => {
                                       <span>Acreditar</span>
                                     </button>
 
-                                    {/* Opción 2: Retira y no corre */}
+                                    {/* Opción Retira y no corre */}
                                     <button
                                       type="button"
                                       onClick={(e) => {
@@ -555,8 +611,8 @@ export const RaceRoster: React.FC = () => {
                                       <span>Retira y no corre</span>
                                     </button>
                                   </>
-                                ) : (
-                                  /* CASO B: Estado 'Acreditado' o 'Retira y no corre': Muestra únicamente 'Editar Estado' */
+                                ) : !isEditing ? (
+                                  /* CASO B: Estado 'Acreditado' o 'Retira y no corre' -> Muestra únicamente 'Editar Estado' */
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -568,6 +624,48 @@ export const RaceRoster: React.FC = () => {
                                     <Edit2 className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                                     <span>Editar Estado</span>
                                   </button>
+                                ) : (
+                                  /* CASO C: Al hacer clic en 'Editar Estado' -> Despliega 'Pendiente', 'Acreditar' y 'Retira y no corre' */
+                                  <>
+                                    {/* Opción 1: Restablecer a Pendiente */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenConfirm(reg, 'Pendiente');
+                                      }}
+                                      className="w-full flex items-center justify-start gap-2 px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                      <span>Pendiente</span>
+                                    </button>
+
+                                    {/* Opción 2: Acreditar */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenConfirm(reg, 'Acreditado');
+                                      }}
+                                      className="w-full flex items-center justify-start gap-2 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                      <span>Acreditar</span>
+                                    </button>
+
+                                    {/* Opción 3: Retira y no corre */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenConfirm(reg, 'Retira y no corre');
+                                      }}
+                                      className="w-full flex items-center justify-start gap-2 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      <Package className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                      <span>Retira y no corre</span>
+                                    </button>
+                                  </>
                                 )}
 
                               </div>
@@ -672,9 +770,15 @@ export const RaceRoster: React.FC = () => {
             
             {/* Ícono representativo */}
             <div className={`w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-4 ${
-              confirmModal.targetState === 'Acreditado' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'
+              confirmModal.targetState === 'Pendiente'
+                ? 'bg-amber-100 text-amber-600'
+                : confirmModal.targetState === 'Acreditado'
+                ? 'bg-emerald-100 text-emerald-600'
+                : 'bg-blue-100 text-blue-600'
             }`}>
-              {confirmModal.targetState === 'Acreditado' ? (
+              {confirmModal.targetState === 'Pendiente' ? (
+                <RotateCcw className="w-7 h-7" />
+              ) : confirmModal.targetState === 'Acreditado' ? (
                 <CheckCircle2 className="w-8 h-8" />
               ) : (
                 <Package className="w-8 h-8" />
@@ -708,7 +812,9 @@ export const RaceRoster: React.FC = () => {
                 onClick={handleConfirmStateChange}
                 disabled={isSubmitting}
                 className={`px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-white rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50 ${
-                  confirmModal.targetState === 'Acreditado'
+                  confirmModal.targetState === 'Pendiente'
+                    ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                    : confirmModal.targetState === 'Acreditado'
                     ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
                     : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
                 }`}
