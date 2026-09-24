@@ -32,8 +32,25 @@ import {
   Layers, 
   PlusCircle, 
   Clock,
-  Sparkles
+  Sparkles,
+  Filter
 } from 'lucide-react';
+
+// Mapeo de meses en español (0 = Enero, 11 = Diciembre)
+const MESES = [
+  { value: '0', label: 'Enero' },
+  { value: '1', label: 'Febrero' },
+  { value: '2', label: 'Marzo' },
+  { value: '3', label: 'Abril' },
+  { value: '4', label: 'Mayo' },
+  { value: '5', label: 'Junio' },
+  { value: '6', label: 'Julio' },
+  { value: '7', label: 'Agosto' },
+  { value: '8', label: 'Septiembre' },
+  { value: '9', label: 'Octubre' },
+  { value: '10', label: 'Noviembre' },
+  { value: '11', label: 'Diciembre' },
+];
 
 /**
  * Normaliza un texto removiendo acentos, tildes y diacríticos, y convirtiendo a minúsculas
@@ -58,6 +75,10 @@ export const RaceManagement: React.FC = () => {
 
   // Filtro de búsqueda en tiempo real
   const [searchTerm, setSearchTerm] = useState<string>('');
+
+  // Filtros combinados por año y mes
+  const [selectedYear, setSelectedYear] = useState<string>('');
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
 
   // Mensaje de éxito / notificación
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
@@ -361,21 +382,59 @@ export const RaceManagement: React.FC = () => {
     }
   };
 
+  // Años disponibles extraídos de las fechas de las carreras
+  const availableYears = Array.from(
+    new Set(
+      races
+        .map((r) => {
+          try {
+            return new Date(r.fecha).getFullYear().toString();
+          } catch {
+            return null;
+          }
+        })
+        .filter((y): y is string => Boolean(y) && !isNaN(Number(y)))
+    )
+  ).sort((a, b) => Number(b) - Number(a));
+
   /**
-   * Filtrado en memoria de carreras con soporte para mayúsculas, minúsculas y tildes/acentos
+   * Filtrado en memoria de carreras con soporte para:
+   * 1. Búsqueda por texto (insensible a mayúsculas, minúsculas, tildes y acentos)
+   * 2. Filtro combinado por Año
+   * 3. Filtro combinado por Mes
    */
   const filteredRaces = races.filter(race => {
-    if (!searchTerm.trim()) return true;
-    const term = normalizeText(searchTerm);
-    const raceNombre = normalizeText(race.nombre);
-    const raceLugar = normalizeText(race.lugar);
-    const raceOrg = normalizeText(race.organizador);
+    // 1. Filtro por término de búsqueda
+    if (searchTerm.trim()) {
+      const term = normalizeText(searchTerm);
+      const raceNombre = normalizeText(race.nombre);
+      const raceLugar = normalizeText(race.lugar);
+      const raceOrg = normalizeText(race.organizador);
 
-    return (
-      raceNombre.includes(term) ||
-      raceLugar.includes(term) ||
-      raceOrg.includes(term)
-    );
+      const matchesSearch = raceNombre.includes(term) || raceLugar.includes(term) || raceOrg.includes(term);
+      if (!matchesSearch) return false;
+    }
+
+    // 2. Filtros por Año y Mes
+    if (race.fecha) {
+      try {
+        const raceDate = new Date(race.fecha);
+        const raceYear = raceDate.getFullYear().toString();
+        const raceMonth = raceDate.getMonth().toString();
+
+        if (selectedYear && raceYear !== selectedYear) {
+          return false;
+        }
+
+        if (selectedMonth !== '' && raceMonth !== selectedMonth) {
+          return false;
+        }
+      } catch {
+        // En caso de fecha inválida
+      }
+    }
+
+    return true;
   });
 
   return (
@@ -421,8 +480,8 @@ export const RaceManagement: React.FC = () => {
       {/* ========================================================================= */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         
-        {/* BARRA SUPERIOR CON BUSCADOR INSENSIBLE A MAYÚSCULAS Y TILDES */}
-        <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* BARRA SUPERIOR CON BUSCADOR Y FILTROS POR AÑO Y MES */}
+        <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <Layers className="w-5 h-5 text-machine" />
@@ -435,16 +494,71 @@ export const RaceManagement: React.FC = () => {
             </p>
           </div>
 
-          {/* Input Buscador */}
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar carrera (ej: maraton, nocturna)..."
-              className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine transition-all"
-            />
+          {/* Buscador y Filtros Combinados de Año y Mes */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Input Buscador */}
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar carrera (ej: maraton)..."
+                className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine transition-all"
+              />
+            </div>
+
+            {/* Icono de filtro */}
+            <div className="hidden sm:flex items-center text-slate-400 pl-1" title="Filtros de fecha">
+              <Filter className="w-3.5 h-3.5" />
+            </div>
+
+            {/* Filtro Año */}
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="px-2.5 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine cursor-pointer transition-all min-w-[110px]"
+              title="Filtrar por año"
+            >
+              <option value="">Año (Todos)</option>
+              {availableYears.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+
+            {/* Filtro Mes */}
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="px-2.5 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 hover:bg-white focus:bg-white focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine cursor-pointer transition-all min-w-[120px]"
+              title="Filtrar por mes"
+            >
+              <option value="">Mes (Todos)</option>
+              {MESES.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Botón Limpiar Filtros */}
+            {(searchTerm.trim() !== '' || selectedYear !== '' || selectedMonth !== '') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedYear('');
+                  setSelectedMonth('');
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                title="Limpiar filtros de búsqueda, año y mes"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Limpiar</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -480,10 +594,14 @@ export const RaceManagement: React.FC = () => {
                   <td colSpan={7} className="text-center py-16">
                     <Users className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                     <p className="text-sm font-bold text-slate-700">
-                      {searchTerm ? 'No se encontraron carreras con ese criterio de búsqueda.' : 'No hay carreras creadas aún.'}
+                      {(searchTerm.trim() !== '' || selectedYear !== '' || selectedMonth !== '') 
+                        ? 'No se encontraron carreras con los filtros seleccionados.' 
+                        : 'No hay carreras creadas aún.'}
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
-                      {searchTerm ? 'Prueba ingresando otro término sin importar tildes ni mayúsculas.' : 'Comienza creando una con el botón "Nueva Carrera".'}
+                      {(searchTerm.trim() !== '' || selectedYear !== '' || selectedMonth !== '')
+                        ? 'Prueba modificando el término de búsqueda o restableciendo los filtros de año y mes.' 
+                        : 'Comienza creando una con el botón "Nueva Carrera".'}
                     </p>
                   </td>
                 </tr>

@@ -487,7 +487,7 @@ export const RaceRoster: React.FC = () => {
               {/* ENCABEZADOS DE COLUMNA */}
               <thead className="bg-slate-50 border-b border-slate-100 text-[11px] uppercase tracking-wider text-slate-500 font-bold select-none">
                 <tr>
-                  {/* 1. Columna ESTADO trasladada a la primera posición */}
+                  {/* 1. Estado */}
                   <th className="px-4 py-3.5 text-center min-w-[190px]">Estado</th>
                   {/* 2. Dorsal */}
                   <th className="px-4 py-3.5 text-center">Dorsal</th>
@@ -497,24 +497,24 @@ export const RaceRoster: React.FC = () => {
                   <th className="px-4 py-3.5">Apellido</th>
                   {/* 5. DNI */}
                   <th className="px-4 py-3.5">DNI</th>
-                  {/* 6. Correo electrónico */}
-                  <th className="px-4 py-3.5">Correo electrónico</th>
-                  {/* 7. Teléfono */}
-                  <th className="px-4 py-3.5">Teléfono</th>
-                  {/* 8. Contacto de emergencia */}
-                  <th className="px-4 py-3.5">Contacto emergencia</th>
+                  {/* 6. Distancia */}
+                  <th className="px-4 py-3.5 text-center">Distancia</th>
+                  {/* 7. Categoría */}
+                  <th className="px-4 py-3.5 text-center">Categoría</th>
+                  {/* 8. Fecha de nacimiento */}
+                  <th className="px-4 py-3.5 text-center">Fecha de nacimiento</th>
                   {/* 9. Sexo */}
                   <th className="px-4 py-3.5 text-center">Sexo</th>
-                  {/* 10. Fecha de nacimiento */}
-                  <th className="px-4 py-3.5 text-center">Fecha Nac.</th>
-                  {/* 11. Categoría */}
-                  <th className="px-4 py-3.5 text-center">Categoría</th>
-                  {/* 12. Distancia */}
-                  <th className="px-4 py-3.5 text-center">Distancia</th>
-                  {/* 13. Ciudad y Provincia */}
-                  <th className="px-4 py-3.5">Ciudad y Provincia</th>
-                  {/* 14. Talle de remera */}
+                  {/* 10. Talle */}
                   <th className="px-4 py-3.5 text-center">Talle</th>
+                  {/* 11. Correo electrónico */}
+                  <th className="px-4 py-3.5">Correo electrónico</th>
+                  {/* 12. Teléfono */}
+                  <th className="px-4 py-3.5">Teléfono</th>
+                  {/* 13. Contacto de emergencia */}
+                  <th className="px-4 py-3.5">Contacto de emergencia</th>
+                  {/* 14. Ciudad y provincia */}
+                  <th className="px-4 py-3.5">Ciudad y provincia</th>
                 </tr>
               </thead>
 
@@ -701,19 +701,21 @@ export const RaceRoster: React.FC = () => {
                         {d.dni || '-'}
                       </td>
 
-                      {/* 6. Correo electrónico */}
-                      <td className="px-4 py-3 text-slate-600">
-                        {d.email || '-'}
+                      {/* 6. Distancia */}
+                      <td className="px-4 py-3 text-center font-bold text-slate-800">
+                        {reg.distancia} km
                       </td>
 
-                      {/* 7. Teléfono */}
-                      <td className="px-4 py-3 text-slate-600 font-mono">
-                        {d.telefono || '-'}
+                      {/* 7. Categoría */}
+                      <td className="px-4 py-3 text-center">
+                        <span className="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded text-[11px] border border-slate-200">
+                          {reg.categoria || '-'}
+                        </span>
                       </td>
 
-                      {/* 8. Contacto de emergencia */}
-                      <td className="px-4 py-3 text-slate-600 font-mono font-medium">
-                        {emergencyPhone}
+                      {/* 8. Fecha de nacimiento */}
+                      <td className="px-4 py-3 text-center text-slate-600 font-medium">
+                        {formatDate(d.fechaNacimiento)}
                       </td>
 
                       {/* 9. Sexo */}
@@ -721,34 +723,32 @@ export const RaceRoster: React.FC = () => {
                         {d.sexo || '-'}
                       </td>
 
-                      {/* 10. Fecha de nacimiento */}
-                      <td className="px-4 py-3 text-center text-slate-600 font-medium">
-                        {formatDate(d.fechaNacimiento)}
-                      </td>
-
-                      {/* 11. Categoría asignada automáticamente */}
-                      <td className="px-4 py-3 text-center">
-                        <span className="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded text-[11px] border border-slate-200">
-                          {reg.categoria || '-'}
-                        </span>
-                      </td>
-
-                      {/* 12. Distancia a correr */}
-                      <td className="px-4 py-3 text-center font-bold text-slate-800">
-                        {reg.distancia} km
-                      </td>
-
-                      {/* 12. Ciudad y Provincia */}
-                      <td className="px-4 py-3 text-slate-600">
-                        {d.ciudad || ''}
-                        {d.provincia && d.provincia !== d.ciudad ? `, ${d.provincia}` : ''}
-                      </td>
-
-                      {/* 13. Talle de remera */}
+                      {/* 10. Talle */}
                       <td className="px-4 py-3 text-center">
                         <span className="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded text-[11px]">
                           {reg.talleRemera || '-'}
                         </span>
+                      </td>
+
+                      {/* 11. Correo electrónico */}
+                      <td className="px-4 py-3 text-slate-600">
+                        {d.email || '-'}
+                      </td>
+
+                      {/* 12. Teléfono */}
+                      <td className="px-4 py-3 text-slate-600 font-mono">
+                        {d.telefono || '-'}
+                      </td>
+
+                      {/* 13. Contacto de emergencia */}
+                      <td className="px-4 py-3 text-slate-600 font-mono font-medium">
+                        {emergencyPhone}
+                      </td>
+
+                      {/* 14. Ciudad y provincia */}
+                      <td className="px-4 py-3 text-slate-600">
+                        {d.ciudad || ''}
+                        {d.provincia && d.provincia !== d.ciudad ? `, ${d.provincia}` : ''}
                       </td>
 
                     </tr>
