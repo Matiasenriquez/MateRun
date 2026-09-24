@@ -12,16 +12,27 @@
  */
 
 import React from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { LogOut, User as UserIcon, Settings, Calendar, Activity, FileText } from 'lucide-react';
 
 export const MainLayout: React.FC = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const location = useLocation();
 
   // Función para determinar si un enlace está activo
   const isActive = (path: string) => location.pathname.startsWith(path);
+
+  /**
+   * Manejador de cierre de sesión:
+   * Limpia la sesión y redirige inmediatamente a /login sin conservar
+   * la ruta actual en el estado, previniendo herencia de rutas entre distintos perfiles.
+   */
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true, state: null });
+  };
 
   return (
     <div className="min-h-screen bg-porcelain flex flex-col">
@@ -54,8 +65,8 @@ export const MainLayout: React.FC = () => {
             <span>{user?.nombre} {user?.apellido}</span>
           </div>
           <button
-            onClick={logout}
-            className="text-slate-500 hover:text-machine transition-colors p-2"
+            onClick={handleLogout}
+            className="text-slate-500 hover:text-machine transition-colors p-2 cursor-pointer"
             title="Cerrar sesión"
           >
             <LogOut className="w-5 h-5" />

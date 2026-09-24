@@ -7,24 +7,28 @@
  * ==============================================================================
  */
 
-import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/api';
 import { Activity, Mail, Lock, AlertCircle } from 'lucide-react';
+import { getDefaultHomePathForRole } from '../../utils/navigation';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { login } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Obtener la ruta a la que intentaba ir el usuario antes de ser redirigido aquí
-  const from = location.state?.from?.pathname || '/dashboard';
+  // Si el usuario ya cuenta con una sesión activa, redireccionar automáticamente a su página inicial
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      navigate(getDefaultHomePathForRole(user.rol), { replace: true, state: null });
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,10 +37,18 @@ export const Login: React.FC = () => {
 
     try {
       const res = await api.post('/auth/login', { email, password });
-      // Guardar token y usuario en el contexto
-      login(res.data.token, res.data.user);
-      // Redirigir
-      navigate(from, { replace: true });
+      const loggedUser = res.data.user;
+
+      // Guardar token y usuario en el contexto de autenticación
+      login(res.data.token, loggedUser);
+
+      // Redirección obligatoria a la página de inicio predeterminada de su perfil:
+      // - SuperAdmin -> Panel de Control
+      // - Corredor   -> Próximas Carreras
+      // - Admin      -> Panel de Control
+      // Se ignora cualquier ruta interna previa y se limpia el historial de navegación
+      const targetPath = getDefaultHomePathForRole(loggedUser.rol);
+      navigate(targetPath, { replace: true, state: null });
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al iniciar sesión. Verifique sus credenciales.');
     } finally {

@@ -59,6 +59,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = () => {
     localStorage.removeItem('materun_token');
+    sessionStorage.clear();
     setToken(null);
     setUser(null);
   };

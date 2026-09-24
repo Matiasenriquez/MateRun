@@ -9,9 +9,10 @@
  */
 
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
+import { getDefaultHomePathForRole } from '../../utils/navigation';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -20,7 +21,6 @@ interface ProtectedRouteProps {
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
-  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -33,32 +33,16 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     );
   }
 
+  // 1. Si no hay sesión activa, redirigir limpiamente a /login sin guardar la ruta previa en el estado
+  // para evitar que el siguiente usuario que inicie sesión herede una ruta que no le corresponde
   if (!isAuthenticated) {
-    // Redirigir al login guardando la ruta intentada para redirigirlo de vuelta después
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/login" replace state={null} />;
   }
 
+  // 2. Si el usuario intenta acceder a una sección que no corresponde a su rol (ej: SuperAdmin a /my-stats
+  // o Corredor a /admin/users), se redirecciona automáticamente a la página de inicio predeterminada de su perfil
   if (allowedRoles && user && !allowedRoles.includes(user.rol)) {
-    // Si está autenticado pero no tiene el rol necesario, mostrar error o redirigir
-    return (
-      <div className="min-h-screen bg-porcelain flex items-center justify-center p-4">
-        <div className="card-panel max-w-md w-full text-center py-10">
-          <div className="w-16 h-16 bg-machine-light text-machine rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-3xl font-black">!</span>
-          </div>
-          <h2 className="text-xl font-bold text-slate-800 mb-2">Acceso Denegado</h2>
-          <p className="text-slate-600 mb-6 text-sm">
-            Tu rol actual ({user.rol}) no tiene permisos para acceder a esta sección.
-          </p>
-          <button
-            onClick={() => window.history.back()}
-            className="btn-primary w-full max-w-[200px] mx-auto"
-          >
-            Volver atrás
-          </button>
-        </div>
-      </div>
-    );
+    return <Navigate to={getDefaultHomePathForRole(user.rol)} replace state={null} />;
   }
 
   return <>{children}</>;
