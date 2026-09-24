@@ -211,7 +211,7 @@ export const MyRegistrations: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
                   <div className="bg-white p-2.5 rounded-lg border border-slate-200/60 shadow-2xs">
                     <p className="text-[10px] uppercase font-bold text-slate-400">Dorsal</p>
                     <p className="text-xl font-black text-machine">{selectedReg.dorsal ? `#${selectedReg.dorsal}` : '-'}</p>
@@ -225,6 +225,12 @@ export const MyRegistrations: React.FC = () => {
                     <p className="text-base font-bold text-slate-800">{selectedReg.talleRemera || '-'}</p>
                   </div>
                   <div className="bg-white p-2.5 rounded-lg border border-slate-200/60 shadow-2xs">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Categoría</p>
+                    <p className="text-xs font-bold text-slate-800 mt-1 truncate" title={selectedReg.categoria || 'General'}>
+                      {selectedReg.categoria || 'General'}
+                    </p>
+                  </div>
+                  <div className="bg-white p-2.5 rounded-lg border border-slate-200/60 shadow-2xs col-span-2 sm:col-span-1">
                     <p className="text-[10px] uppercase font-bold text-slate-400">Fecha Carrera</p>
                     <p className="text-xs font-semibold text-slate-700 mt-1">{formatDate(selectedReg.carrera?.fecha)}</p>
                   </div>

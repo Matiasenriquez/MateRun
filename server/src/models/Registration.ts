@@ -53,6 +53,7 @@ export interface IRegistration extends Document {
   datosCorredor: IRunnerSnapshot;
   talleRemera: 'XS' | 'S' | 'M' | 'L' | 'XL' | '2XL';
   estado: 'Pendiente' | 'Acreditado' | 'Retira y no corre' | 'Baja';
+  categoria?: string;
   fechaAcreditacion?: Date;
   acreditadoPor?: Types.ObjectId;
   fechaInscripcion: Date;
@@ -127,6 +128,10 @@ const RegistrationSchema = new Schema<IRegistration>(
       },
       default: 'Pendiente',
       index: true,
+    },
+    categoria: {
+      type: String,
+      trim: true,
     },
     fechaAcreditacion: {
       type: Date,

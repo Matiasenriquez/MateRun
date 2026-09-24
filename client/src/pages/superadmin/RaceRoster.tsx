@@ -295,6 +295,7 @@ export const RaceRoster: React.FC = () => {
     const dni = normalizeText(datos.dni);
     const dorsal = normalizeText(String(reg.dorsal || ''));
     const estado = normalizeText(reg.estado || 'Pendiente');
+    const categoria = normalizeText(reg.categoria || '');
     const email = normalizeText(datos.email);
     const ciudad = normalizeText(datos.ciudad);
     const provincia = normalizeText(datos.provincia);
@@ -305,6 +306,7 @@ export const RaceRoster: React.FC = () => {
       dni.includes(term) ||
       dorsal.includes(term) ||
       estado.includes(term) ||
+      categoria.includes(term) ||
       email.includes(term) ||
       ciudad.includes(term) ||
       provincia.includes(term)
@@ -505,11 +507,13 @@ export const RaceRoster: React.FC = () => {
                   <th className="px-4 py-3.5 text-center">Sexo</th>
                   {/* 10. Fecha de nacimiento */}
                   <th className="px-4 py-3.5 text-center">Fecha Nac.</th>
-                  {/* 11. Distancia */}
+                  {/* 11. Categoría */}
+                  <th className="px-4 py-3.5 text-center">Categoría</th>
+                  {/* 12. Distancia */}
                   <th className="px-4 py-3.5 text-center">Distancia</th>
-                  {/* 12. Ciudad y Provincia */}
+                  {/* 13. Ciudad y Provincia */}
                   <th className="px-4 py-3.5">Ciudad y Provincia</th>
-                  {/* 13. Talle de remera */}
+                  {/* 14. Talle de remera */}
                   <th className="px-4 py-3.5 text-center">Talle</th>
                 </tr>
               </thead>
@@ -722,7 +726,14 @@ export const RaceRoster: React.FC = () => {
                         {formatDate(d.fechaNacimiento)}
                       </td>
 
-                      {/* 11. Distancia a correr */}
+                      {/* 11. Categoría asignada automáticamente */}
+                      <td className="px-4 py-3 text-center">
+                        <span className="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded text-[11px] border border-slate-200">
+                          {reg.categoria || '-'}
+                        </span>
+                      </td>
+
+                      {/* 12. Distancia a correr */}
                       <td className="px-4 py-3 text-center font-bold text-slate-800">
                         {reg.distancia} km
                       </td>

@@ -50,6 +50,50 @@ const findAvailableDorsal = async (raceId: string, cupoMaximo: number): Promise<
 };
 
 /**
+ * Función auxiliar: Calcula la edad exacta del corredor a la fecha del evento deportivo.
+ * Regla de negocio estricta:
+ * La edad considerada es exclusivamente la que tenga el corredor a la fecha del evento.
+ * Si el corredor todavía no cumplió años en la fecha del evento, se considera su edad menor.
+ * 
+ * Ejemplo:
+ * Nacido el 15/10/2010 y evento el 10/10/2026 -> tiene 15 años (aún no cumplió 16).
+ */
+export const calculateAgeAtEvent = (birthDate: Date | string, eventDate: Date | string): number => {
+  const birth = new Date(birthDate);
+  const event = new Date(eventDate);
+
+  let age = event.getFullYear() - birth.getFullYear();
+  const monthDiff = event.getMonth() - birth.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && event.getDate() < birth.getDate())) {
+    age--;
+  }
+
+  return age;
+};
+
+/**
+ * Función auxiliar: Determina automáticamente la categoría correspondiente al corredor
+ * según su edad a la fecha del evento y las categorías definidas en la carrera.
+ */
+export const determineRunnerCategory = (
+  birthDate: Date | string,
+  eventDate: Date | string,
+  categorias?: { nombre: string; edadMinima: number; edadMaxima: number }[]
+): string => {
+  const age = calculateAgeAtEvent(birthDate, eventDate);
+
+  if (categorias && Array.isArray(categorias) && categorias.length > 0) {
+    const matched = categorias.find((cat) => age >= cat.edadMinima && age <= cat.edadMaxima);
+    if (matched) {
+      return matched.nombre;
+    }
+  }
+
+  return `${age} años`;
+};
+
+/**
  * Autoinscripción de un corredor a una carrera.
  * 
  * Ruta: POST /api/registrations
@@ -193,7 +237,10 @@ export const registerRunner = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // 6. Crear la inscripción con snapshot de los datos del corredor
+    // 6. Asignar automáticamente la categoría por edad al evento
+    const assignedCategory = determineRunnerCategory(fechaNacimiento, race.fecha, race.categorias);
+
+    // Crear la inscripción con snapshot de los datos del corredor
     const newRegistration = new Registration({
       carrera: carreraId,
       corredor: userId,
@@ -213,6 +260,7 @@ export const registerRunner = async (req: Request, res: Response): Promise<void>
       },
       talleRemera,
       estado: 'Pendiente',
+      categoria: assignedCategory,
       fechaInscripcion: new Date(),
     });
 
@@ -347,7 +395,10 @@ export const registerByAdmin = async (req: Request, res: Response): Promise<void
       await runnerUser.save();
     }
 
-    // 5. Crear la inscripción
+    // 5. Asignar automáticamente la categoría por edad al evento
+    const assignedCategory = determineRunnerCategory(fechaNacimiento, race.fecha, race.categorias);
+
+    // Crear la inscripción
     const newRegistration = new Registration({
       carrera: carreraId,
       corredor: runnerUser._id,
@@ -367,6 +418,7 @@ export const registerByAdmin = async (req: Request, res: Response): Promise<void
       },
       talleRemera,
       estado: 'Pendiente',
+      categoria: assignedCategory,
       fechaInscripcion: new Date(),
     });
 
@@ -417,6 +469,8 @@ export const getRegistrationsByRace = async (req: Request, res: Response): Promi
       filter.distancia = Number(distancia);
     }
 
+    const race = await Race.findById(raceId);
+
     let registrations = await Registration.find(filter)
       .populate('acreditadoPor', 'nombre apellido')
       .sort({ dorsal: 1 });
@@ -435,7 +489,20 @@ export const getRegistrationsByRace = async (req: Request, res: Response): Promi
       });
     }
 
-    res.status(200).json({ registrations });
+    // Asegurar que cada inscripción tenga su categoría calculada
+    const processedRegistrations = registrations.map((r) => {
+      const obj = r.toObject();
+      if (!obj.categoria && race && obj.datosCorredor?.fechaNacimiento) {
+        obj.categoria = determineRunnerCategory(
+          obj.datosCorredor.fechaNacimiento,
+          race.fecha,
+          race.categorias
+        );
+      }
+      return obj;
+    });
+
+    res.status(200).json({ registrations: processedRegistrations });
   } catch (error: any) {
     console.error('Error al listar inscripciones de la carrera:', error);
     res.status(500).json({ error: 'Error de servidor', message: error.message });

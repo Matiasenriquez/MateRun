@@ -3,9 +3,10 @@
  * CONTROLADOR DE CARRERAS (Race Controller) - MateRun
  * ==============================================================================
  * Gestiona el ciclo de vida de los eventos de trail running y maratones:
- * 1. getAllRaces: Lista todas las carreras con cálculo en tiempo real de inscriptos y cupos.
+ * 1. getAllRaces: Lista todas las carreras con cálculo en tiempo real de inscriptos y cupos,
+ *    poblando el administrador asignado y las categorías etarias.
  * 2. getRaceById: Consulta el detalle completo de una carrera específica.
- * 3. createRace: Creación de nueva carrera con distancias dinámicas (SuperAdmin).
+ * 3. createRace: Creación de nueva carrera con distancias dinámicas, categorías y admin asignado (SuperAdmin).
  * 4. updateRace: Edición de datos de una carrera existente (SuperAdmin).
  * 5. deleteRace: Eliminación o cancelación de un evento (SuperAdmin).
  * ==============================================================================
@@ -20,6 +21,7 @@ import { Registration } from '../models/Registration';
  * Calcula automáticamente:
  * - totalInscriptos: corredores activos (excluye aquellos con estado 'Baja')
  * - cuposDisponibles: cupoMaximo - totalInscriptos
+ * - adminAsignado: datos del usuario administrador a cargo
  * 
  * Ruta: GET /api/races
  * Acceso: Privado (cualquier usuario autenticado)
@@ -45,7 +47,9 @@ export const getAllRaces = async (req: Request, res: Response): Promise<void> =>
       ];
     }
 
-    const races = await Race.find(filter).sort({ fecha: -1 });
+    const races = await Race.find(filter)
+      .populate('adminAsignado', 'nombre apellido email')
+      .sort({ fecha: -1 });
 
     // Para cada carrera, calcular la cantidad de inscriptos activos y cupos restantes
     const racesWithStats = await Promise.all(
@@ -82,7 +86,7 @@ export const getRaceById = async (req: Request, res: Response): Promise<void> =>
   try {
     const { id } = req.params;
 
-    const race = await Race.findById(id);
+    const race = await Race.findById(id).populate('adminAsignado', 'nombre apellido email');
     if (!race) {
       res.status(404).json({ error: 'Carrera no encontrada' });
       return;
@@ -113,6 +117,8 @@ export const getRaceById = async (req: Request, res: Response): Promise<void> =>
  * 
  * Reglas de negocio:
  * - Las distancias deben ser un arreglo de números positivos ingresados dinámicamente.
+ * - Categorías etarias opcionales configuradas por rangos de edad.
+ * - Admin asignado opcional.
  * - Solo ejecutable por el rol 'superadmin'.
  * 
  * Ruta: POST /api/races
@@ -120,13 +126,23 @@ export const getRaceById = async (req: Request, res: Response): Promise<void> =>
  */
 export const createRace = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { nombre, lugar, cupoMaximo, fecha, organizador, distancias, estado } = req.body;
+    const { 
+      nombre, 
+      lugar, 
+      cupoMaximo, 
+      fecha, 
+      organizador, 
+      distancias, 
+      estado,
+      adminAsignado,
+      categorias
+    } = req.body;
 
     // Validar campos obligatorios
-    if (!nombre || !lugar || !cupoMaximo || !fecha || !organizador || !distancias) {
+    if (!nombre || !cupoMaximo || !fecha || !distancias) {
       res.status(400).json({
         error: 'Datos incompletos',
-        message: 'Nombre, lugar, cupo de corredores, fecha, organizador y distancias son obligatorios',
+        message: 'Nombre, cupo de corredores, fecha y distancias son obligatorios',
       });
       return;
     }
@@ -134,6 +150,8 @@ export const createRace = async (req: Request, res: Response): Promise<void> => 
     // Normalizar y validar arreglo de distancias
     const parsedDistances = Array.isArray(distancias)
       ? distancias.map((d: any) => Number(d)).filter((d: number) => !isNaN(d) && d > 0)
+      : typeof distancias === 'string'
+      ? distancias.split(',').map((d: string) => Number(d.trim())).filter((d: number) => !isNaN(d) && d > 0)
       : [];
 
     if (parsedDistances.length === 0) {
@@ -144,22 +162,37 @@ export const createRace = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    // Normalizar categorías etarias
+    const parsedCategorias = Array.isArray(categorias)
+      ? categorias
+          .filter((c: any) => c && c.nombre && String(c.nombre).trim() !== '')
+          .map((c: any) => ({
+            nombre: String(c.nombre).trim(),
+            edadMinima: Math.max(0, Number(c.edadMinima) || 0),
+            edadMaxima: Math.max(0, Number(c.edadMaxima) || 0),
+          }))
+      : [];
+
     const newRace = new Race({
-      nombre: nombre.trim(),
-      lugar: lugar.trim(),
+      nombre: String(nombre).trim(),
+      lugar: lugar ? String(lugar).trim() : 'Circuito Oficial',
       cupoMaximo: Number(cupoMaximo),
       fecha: new Date(fecha),
-      organizador: organizador.trim(),
+      organizador: organizador ? String(organizador).trim() : 'Organización Deportiva',
       distancias: parsedDistances,
       estado: estado || 'activa',
       creadoPor: req.user?.id,
+      adminAsignado: adminAsignado ? adminAsignado : null,
+      categorias: parsedCategorias,
     });
 
     await newRace.save();
 
+    const populatedRace = await Race.findById(newRace._id).populate('adminAsignado', 'nombre apellido email');
+
     res.status(201).json({
       message: 'Carrera creada exitosamente',
-      race: newRace,
+      race: populatedRace || newRace,
     });
   } catch (error: any) {
     console.error('Error al crear carrera:', error);
@@ -176,7 +209,17 @@ export const createRace = async (req: Request, res: Response): Promise<void> => 
 export const updateRace = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { nombre, lugar, cupoMaximo, fecha, organizador, distancias, estado } = req.body;
+    const { 
+      nombre, 
+      lugar, 
+      cupoMaximo, 
+      fecha, 
+      organizador, 
+      distancias, 
+      estado,
+      adminAsignado,
+      categorias
+    } = req.body;
 
     const race = await Race.findById(id);
     if (!race) {
@@ -184,28 +227,51 @@ export const updateRace = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    if (nombre) race.nombre = nombre.trim();
-    if (lugar) race.lugar = lugar.trim();
-    if (cupoMaximo) race.cupoMaximo = Number(cupoMaximo);
-    if (fecha) race.fecha = new Date(fecha);
-    if (organizador) race.organizador = organizador.trim();
-    if (estado) race.estado = estado;
+    if (nombre !== undefined) race.nombre = String(nombre).trim();
+    if (lugar !== undefined) race.lugar = String(lugar).trim();
+    if (cupoMaximo !== undefined) race.cupoMaximo = Number(cupoMaximo);
+    if (fecha !== undefined) race.fecha = new Date(fecha);
+    if (organizador !== undefined) race.organizador = String(organizador).trim();
+    if (estado !== undefined) race.estado = estado;
 
-    if (distancias && Array.isArray(distancias)) {
-      const parsedDistances = distancias
-        .map((d: any) => Number(d))
-        .filter((d: number) => !isNaN(d) && d > 0);
+    // Actualización de distancias si se proporcionan
+    if (distancias !== undefined) {
+      const parsedDistances = Array.isArray(distancias)
+        ? distancias.map((d: any) => Number(d)).filter((d: number) => !isNaN(d) && d > 0)
+        : typeof distancias === 'string'
+        ? distancias.split(',').map((d: string) => Number(d.trim())).filter((d: number) => !isNaN(d) && d > 0)
+        : [];
 
       if (parsedDistances.length > 0) {
         race.distancias = parsedDistances;
       }
     }
 
+    // Actualización del administrador asignado (permite asignar id o null)
+    if (adminAsignado !== undefined) {
+      race.adminAsignado = adminAsignado ? adminAsignado : null as any;
+    }
+
+    // Actualización de categorías etarias si se proporcionan
+    if (categorias !== undefined) {
+      race.categorias = Array.isArray(categorias)
+        ? categorias
+            .filter((c: any) => c && c.nombre && String(c.nombre).trim() !== '')
+            .map((c: any) => ({
+              nombre: String(c.nombre).trim(),
+              edadMinima: Math.max(0, Number(c.edadMinima) || 0),
+              edadMaxima: Math.max(0, Number(c.edadMaxima) || 0),
+            }))
+        : [];
+    }
+
     await race.save();
+
+    const populatedRace = await Race.findById(race._id).populate('adminAsignado', 'nombre apellido email');
 
     res.status(200).json({
       message: 'Carrera actualizada correctamente',
-      race,
+      race: populatedRace || race,
     });
   } catch (error: any) {
     console.error('Error al actualizar carrera:', error);
@@ -229,7 +295,7 @@ export const deleteRace = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Opcional: También se pueden limpiar inscripciones huérfanas
+    // Limpiar inscripciones asociadas a la carrera eliminada
     await Registration.deleteMany({ carrera: id });
     await Race.findByIdAndDelete(id);
 

@@ -45,6 +45,15 @@ export interface User {
 }
 
 /**
+ * Categoría etaria configurada para una carrera
+ */
+export interface RaceCategory {
+  nombre: string;
+  edadMinima: number;
+  edadMaxima: number;
+}
+
+/**
  * Representación de una carrera / evento deportivo
  */
 export interface Race {
@@ -57,6 +66,8 @@ export interface Race {
   distancias: number[]; // Lista de distancias numéricas en km (ej. [10, 21, 42])
   estado: 'activa' | 'finalizada' | 'cancelada';
   creadoPor?: string;
+  adminAsignado?: User | string | null;
+  categorias?: RaceCategory[];
   totalInscriptos?: number;
   cuposDisponibles?: number;
 }
@@ -87,6 +98,7 @@ export interface Registration {
   };
   talleRemera: ShirtSize;
   estado: RegistrationStatus;
+  categoria?: string;
   fechaAcreditacion?: string;
   acreditadoPor?: string | User;
   fechaInscripcion: string;
