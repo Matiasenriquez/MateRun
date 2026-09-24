@@ -41,6 +41,7 @@ export interface IRace extends Document {
   organizador: string;
   distancias: number[];
   estado: 'activa' | 'finalizada' | 'cancelada';
+  visibilidad: 'Visible' | 'Oculta';
   creadoPor?: Types.ObjectId;
   adminAsignado?: Types.ObjectId;
   categorias?: IRaceCategory[];
@@ -115,6 +116,15 @@ const RaceSchema = new Schema<IRace>(
         message: '{VALUE} no es un estado de carrera válido',
       },
       default: 'activa',
+      index: true,
+    },
+    visibilidad: {
+      type: String,
+      enum: {
+        values: ['Visible', 'Oculta'],
+        message: '{VALUE} no es un estado de visibilidad válido (debe ser Visible u Oculta)',
+      },
+      default: 'Visible',
       index: true,
     },
     creadoPor: {

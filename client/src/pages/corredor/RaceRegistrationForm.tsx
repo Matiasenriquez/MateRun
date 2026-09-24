@@ -69,6 +69,8 @@ export const RaceRegistrationForm: React.FC = () => {
         const raceDate = new Date(raceData.fecha);
         if (raceDate < new Date() || raceData.estado === 'finalizada' || raceData.estado === 'cancelada') {
           setFormError('Las inscripciones para esta carrera se encuentran cerradas debido a que la fecha de realización ya ha transcurrido.');
+        } else if (raceData.visibilidad === 'Oculta') {
+          setFormError('Esta carrera se encuentra oculta y no acepta nuevas inscripciones.');
         }
 
         // Preseleccionar la primera distancia disponible si existe

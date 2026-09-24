@@ -54,6 +54,11 @@ export interface RaceCategory {
 }
 
 /**
+ * Estados de visibilidad de una carrera
+ */
+export type RaceVisibility = 'Visible' | 'Oculta';
+
+/**
  * Representación de una carrera / evento deportivo
  */
 export interface Race {
@@ -65,6 +70,7 @@ export interface Race {
   organizador: string;
   distancias: number[]; // Lista de distancias numéricas en km (ej. [10, 21, 42])
   estado: 'activa' | 'finalizada' | 'cancelada';
+  visibilidad?: RaceVisibility;
   creadoPor?: string;
   adminAsignado?: User | string | null;
   categorias?: RaceCategory[];

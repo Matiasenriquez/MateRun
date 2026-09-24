@@ -80,7 +80,7 @@ export const MyRegistrations: React.FC = () => {
         <div className="flex justify-center p-12">
           <div className="w-8 h-8 border-4 border-slate-200 border-t-machine rounded-full animate-spin"></div>
         </div>
-      ) : registrations.length === 0 ? (
+      ) : registrations.filter(r => r.carrera && (typeof r.carrera === 'string' || r.carrera.visibilidad !== 'Oculta')).length === 0 ? (
         // Estado vacío: no hay inscripciones
         <div className="card-panel text-center py-16">
           <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
@@ -90,8 +90,10 @@ export const MyRegistrations: React.FC = () => {
       ) : (
         // Cuadrícula de tarjetas de inscripciones
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {registrations.map((reg) => {
-            const carreraObj = reg.carrera || {};
+          {registrations
+            .filter(r => r.carrera && (typeof r.carrera === 'string' || r.carrera.visibilidad !== 'Oculta'))
+            .map((reg) => {
+              const carreraObj = reg.carrera || {};
 
             return (
               <div 

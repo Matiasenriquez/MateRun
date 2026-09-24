@@ -193,6 +193,15 @@ export const registerRunner = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // Regla de Visibilidad: Si la carrera está Oculta, no está disponible para inscripciones
+    if (race.visibilidad === 'Oculta') {
+      res.status(400).json({
+        error: 'Carrera no disponible',
+        message: 'Esta carrera no se encuentra disponible para inscripciones',
+      });
+      return;
+    }
+
     // Validar que la fecha de realización no haya transcurrido
     if (new Date(race.fecha) < new Date()) {
       res.status(400).json({
@@ -346,6 +355,15 @@ export const registerByAdmin = async (req: Request, res: Response): Promise<void
       return;
     }
 
+    // Regla de Visibilidad: Si la carrera está Oculta y el usuario no es SuperAdmin, no puede inscribir
+    if (race.visibilidad === 'Oculta' && req.user?.rol !== 'superadmin') {
+      res.status(400).json({
+        error: 'Carrera no disponible',
+        message: 'Esta carrera se encuentra oculta y no está disponible para administración',
+      });
+      return;
+    }
+
     // Validar que el dorsal no supere el cupo máximo
     if (dorsalNumber > race.cupoMaximo) {
       res.status(400).json({
@@ -470,6 +488,19 @@ export const getRegistrationsByRace = async (req: Request, res: Response): Promi
     }
 
     const race = await Race.findById(raceId);
+    if (!race) {
+      res.status(404).json({ error: 'Carrera no encontrada' });
+      return;
+    }
+
+    // Regla de Visibilidad: Si la carrera está Oculta y el usuario no es SuperAdmin, denegar acceso
+    if (race.visibilidad === 'Oculta' && req.user?.rol !== 'superadmin') {
+      res.status(404).json({
+        error: 'Carrera no disponible',
+        message: 'Esta carrera se encuentra oculta y no está disponible para administración',
+      });
+      return;
+    }
 
     let registrations = await Registration.find(filter)
       .populate('acreditadoPor', 'nombre apellido')
@@ -527,7 +558,17 @@ export const getMyRegistrations = async (req: Request, res: Response): Promise<v
       .populate('carrera')
       .sort({ createdAt: -1 });
 
-    res.status(200).json({ registrations });
+    // REGLA CRÍTICA DE VISIBILIDAD (Requerimiento 5):
+    // Las carreras configuradas como 'Ocultas' no deberán aparecer en el apartado 'Mis Inscripciones'
+    // del perfil del Corredor, aunque se haya inscripto previamente cuando estaba 'Visible'.
+    // La inscripción existente se conserva intacta en el sistema.
+    // Cuando el SuperAdmin vuelva a establecer la carrera como 'Visible', volverá a mostrarse automáticamente.
+    const visibleRegistrations = registrations.filter((reg: any) => {
+      if (!reg.carrera) return false;
+      return reg.carrera.visibilidad !== 'Oculta';
+    });
+
+    res.status(200).json({ registrations: visibleRegistrations });
   } catch (error: any) {
     console.error('Error al obtener mis inscripciones:', error);
     res.status(500).json({ error: 'Error de servidor', message: error.message });

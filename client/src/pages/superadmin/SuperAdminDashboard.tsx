@@ -28,7 +28,9 @@ import {
   Award,
   Filter,
   X,
-  Tag
+  Tag,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 /**
@@ -363,6 +365,25 @@ export const SuperAdminDashboard: React.FC = () => {
                             : 'bg-slate-100 text-slate-600'
                         }`}>
                           {isPast ? 'Finalizada' : race.estado}
+                        </span>
+
+                        {/* Badge de Visibilidad para SuperAdmin */}
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                          race.visibilidad === 'Oculta'
+                            ? 'bg-slate-100 text-slate-600 border-slate-300'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                          {race.visibilidad === 'Oculta' ? (
+                            <>
+                              <EyeOff className="w-3 h-3 text-slate-500" />
+                              <span>Oculta</span>
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-3 h-3 text-emerald-600" />
+                              <span>Visible</span>
+                            </>
+                          )}
                         </span>
 
                         <div className="flex items-center gap-1 text-slate-400 text-xs">

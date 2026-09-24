@@ -28,9 +28,20 @@ import { Registration } from '../models/Registration';
  */
 export const getAllRaces = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { search, estado } = req.query;
+    const { search, estado, visibilidad } = req.query;
 
     const filter: Record<string, any> = {};
+
+    // REGLA ESTRICTA DE VISIBILIDAD DE CARRERAS:
+    // 1. Usuarios 'corredor' y 'admin' ÚNICAMENTE pueden visualizar carreras con visibilidad 'Visible'.
+    //    Las carreras configuradas como 'Ocultas' no se retornan bajo ninguna circunstancia a estos roles.
+    // 2. El usuario 'superadmin' tiene permisos totales para visualizar todas las carreras (Visibles y Ocultas).
+    const userRole = req.user?.rol;
+    if (userRole !== 'superadmin') {
+      filter.visibilidad = { $ne: 'Oculta' };
+    } else if (visibilidad && typeof visibilidad === 'string') {
+      filter.visibilidad = visibilidad;
+    }
 
     // Filtro por estado ('activa', 'finalizada', etc.) si se proporciona
     if (estado && typeof estado === 'string') {
@@ -85,10 +96,20 @@ export const getAllRaces = async (req: Request, res: Response): Promise<void> =>
 export const getRaceById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const userRole = req.user?.rol;
 
     const race = await Race.findById(id).populate('adminAsignado', 'nombre apellido email');
     if (!race) {
       res.status(404).json({ error: 'Carrera no encontrada' });
+      return;
+    }
+
+    // Regla de Visibilidad: Si la carrera está 'Oculta', solo el SuperAdmin puede acceder
+    if (race.visibilidad === 'Oculta' && userRole !== 'superadmin') {
+      res.status(404).json({
+        error: 'Carrera no disponible',
+        message: 'Esta carrera no se encuentra disponible',
+      });
       return;
     }
 
@@ -134,6 +155,7 @@ export const createRace = async (req: Request, res: Response): Promise<void> => 
       organizador, 
       distancias, 
       estado,
+      visibilidad,
       adminAsignado,
       categorias
     } = req.body;
@@ -181,6 +203,7 @@ export const createRace = async (req: Request, res: Response): Promise<void> => 
       organizador: organizador ? String(organizador).trim() : 'Organización Deportiva',
       distancias: parsedDistances,
       estado: estado || 'activa',
+      visibilidad: visibilidad === 'Oculta' ? 'Oculta' : 'Visible',
       creadoPor: req.user?.id,
       adminAsignado: adminAsignado ? adminAsignado : null,
       categorias: parsedCategorias,
@@ -217,6 +240,7 @@ export const updateRace = async (req: Request, res: Response): Promise<void> => 
       organizador, 
       distancias, 
       estado,
+      visibilidad,
       adminAsignado,
       categorias
     } = req.body;
@@ -233,6 +257,18 @@ export const updateRace = async (req: Request, res: Response): Promise<void> => 
     if (fecha !== undefined) race.fecha = new Date(fecha);
     if (organizador !== undefined) race.organizador = String(organizador).trim();
     if (estado !== undefined) race.estado = estado;
+
+    // Regla de Visibilidad: Solo SuperAdmin tiene permisos para establecer o modificar visibilidad
+    if (visibilidad !== undefined) {
+      if (req.user?.rol !== 'superadmin') {
+        res.status(403).json({
+          error: 'Acceso denegado',
+          message: 'Solo el usuario SuperAdmin tiene permisos para modificar la visibilidad de una carrera',
+        });
+        return;
+      }
+      race.visibilidad = visibilidad === 'Oculta' ? 'Oculta' : 'Visible';
+    }
 
     // Actualización de distancias si se proporcionan
     if (distancias !== undefined) {
