@@ -60,39 +60,50 @@ export const getRunnerStats = async (req: Request, res: Response): Promise<void>
     // --------------------------------------------------------------------------
     const totalCarreras = raceResults.length;
 
-    // 1. Distancia promedio en km
-    const sumaDistancias = raceResults.reduce((acc, curr) => acc + curr.distancia, 0);
-    const distanciaPromedio = Number((sumaDistancias / totalCarreras).toFixed(1));
+    // 1. Distancia promedio en km (solo carreras con distancia válida registrada)
+    const validDistances = raceResults.filter(r => typeof r.distancia === 'number' && r.distancia > 0);
+    const distanciaPromedio = validDistances.length > 0
+      ? Number((validDistances.reduce((acc, curr) => acc + curr.distancia, 0) / validDistances.length).toFixed(1))
+      : null;
 
-    // 2. Tiempo promedio en segundos y formateado a HH:MM:SS
-    const sumaSegundos = raceResults.reduce((acc, curr) => acc + curr.tiempoSegundos, 0);
-    const tiempoPromedioSegundos = Math.round(sumaSegundos / totalCarreras);
-    const tiempoPromedioFormateado = formatSecondsToTime(tiempoPromedioSegundos);
+    // 2. Tiempo promedio y mejor tiempo (solo carreras con tiempo oficial cargado)
+    const validTimes = raceResults.filter(r => typeof r.tiempoSegundos === 'number' && r.tiempoSegundos > 0);
+    let tiempoPromedioSegundos: number | null = null;
+    let tiempoPromedioFormateado: string | null = null;
+    let mejorTiempoSegundos: number | null = null;
+    let mejorTiempoFormateado: string | null = null;
+    let carreraMejorTiempo: string | null = null;
 
-    // 3. Mejor tiempo (menor cantidad de segundos) y en qué carrera fue
-    let mejorRegistro = raceResults[0];
-    for (const r of raceResults) {
-      if (r.tiempoSegundos < mejorRegistro.tiempoSegundos) {
-        mejorRegistro = r;
+    if (validTimes.length > 0) {
+      const sumaSegundos = validTimes.reduce((acc, curr) => acc + (curr.tiempoSegundos || 0), 0);
+      tiempoPromedioSegundos = Math.round(sumaSegundos / validTimes.length);
+      tiempoPromedioFormateado = formatSecondsToTime(tiempoPromedioSegundos);
+
+      let mejorRegistro = validTimes[0];
+      for (const r of validTimes) {
+        if ((r.tiempoSegundos || Infinity) < (mejorRegistro.tiempoSegundos || Infinity)) {
+          mejorRegistro = r;
+        }
       }
+
+      mejorTiempoSegundos = mejorRegistro.tiempoSegundos || null;
+      mejorTiempoFormateado = mejorTiempoSegundos ? formatSecondsToTime(mejorTiempoSegundos) : null;
+      carreraMejorTiempo = `${mejorRegistro.nombreCarrera} (${mejorRegistro.distancia}k)`;
     }
 
-    const mejorTiempoSegundos = mejorRegistro.tiempoSegundos;
-    const mejorTiempoFormateado = formatSecondsToTime(mejorTiempoSegundos);
-    const carreraMejorTiempo = `${mejorRegistro.nombreCarrera} (${mejorRegistro.distancia}k)`;
-
-    // Formatear cada resultado para incluir su tiempo legible en HH:MM:SS
+    // Formatear cada resultado: si un dato no fue cargado por SuperAdmin, queda en null para renderizar "Pendiente"
     const formattedResults = raceResults.map((r) => ({
       _id: r._id,
+      carrera: r.carrera || null,
       nombreCarrera: r.nombreCarrera,
       fecha: r.fecha,
       distancia: r.distancia,
-      tiempoSegundos: r.tiempoSegundos,
-      tiempoFormateado: formatSecondsToTime(r.tiempoSegundos),
-      posicionGeneral: r.posicionGeneral,
-      posicionCategoria: r.posicionCategoria,
-      posicionSexo: r.posicionSexo,
-      categoria: r.categoria,
+      tiempoSegundos: r.tiempoSegundos ?? null,
+      tiempoFormateado: (r.tiempoSegundos && r.tiempoSegundos > 0) ? formatSecondsToTime(r.tiempoSegundos) : null,
+      posicionGeneral: r.posicionGeneral ?? null,
+      posicionCategoria: r.posicionCategoria ?? null,
+      posicionSexo: r.posicionSexo ?? null,
+      categoria: r.categoria ?? null,
     }));
 
     res.status(200).json({

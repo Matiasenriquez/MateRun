@@ -133,26 +133,27 @@ export interface AuditLog {
  */
 export interface RaceResult {
   _id: string;
+  carrera?: string | null;
   nombreCarrera: string;
   fecha: string;
   distancia: number;
-  tiempoSegundos: number;
-  tiempoFormateado: string; // ej. "01:45:30"
-  posicionGeneral: number;
-  posicionCategoria: number;
-  posicionSexo: number;
-  categoria: string;
+  tiempoSegundos?: number | null;
+  tiempoFormateado?: string | null; // ej. "01:45:30" o null si está pendiente
+  posicionGeneral?: number | null; // null si está pendiente
+  posicionCategoria?: number | null; // null si está pendiente
+  posicionSexo?: number | null;
+  categoria?: string | null; // ej. "20-29"
 }
 
 /**
  * Métricas calculadas para la sección "Mis Datos" del corredor
  */
 export interface RunnerStats {
-  distanciaPromedio: number;
-  tiempoPromedioFormateado: string;
-  tiempoPromedioSegundos: number;
-  mejorTiempoFormateado: string;
-  mejorTiempoSegundos: number;
-  carreraMejorTiempo: string;
+  distanciaPromedio: number | null;
+  tiempoPromedioFormateado: string | null;
+  tiempoPromedioSegundos: number | null;
+  mejorTiempoFormateado: string | null;
+  mejorTiempoSegundos: number | null;
+  carreraMejorTiempo: string | null;
   totalCarreras: number;
 }

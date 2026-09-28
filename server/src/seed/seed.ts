@@ -229,58 +229,61 @@ export const runSeed = async () => {
     const historicalResults = [
       {
         corredor: corredorEjemplo._id,
-        nombreCarrera: 'Trail Huella Andina 2025',
-        fecha: new Date('2025-03-15'),
+        carrera: race1._id,
+        nombreCarrera: 'Ultra Trail Los Andes 2026',
+        fecha: new Date('2026-09-20'),
         distancia: 21,
         tiempoSegundos: 6734, // 01:52:14
-        posicionGeneral: 14,
-        posicionCategoria: 4,
-        posicionSexo: 12,
-        categoria: '30-39 Masculino',
+        posicionGeneral: 2,
+        posicionCategoria: 2,
+        posicionSexo: 2,
+        categoria: '20-29',
       },
       {
         corredor: corredorEjemplo._id,
-        nombreCarrera: 'Maratón de las Sierras 2025',
-        fecha: new Date('2025-06-22'),
-        distancia: 42,
-        tiempoSegundos: 13710, // 03:48:30
-        posicionGeneral: 28,
-        posicionCategoria: 8,
-        posicionSexo: 25,
-        categoria: '30-39 Masculino',
+        carrera: race2._id,
+        nombreCarrera: 'Maratón Nocturna del Valle 2026',
+        fecha: new Date('2026-08-15'),
+        distancia: 10,
+        tiempoSegundos: 2845, // 00:47:25 -> Récord personal
+        posicionGeneral: 1,
+        posicionCategoria: 1,
+        posicionSexo: 1,
+        categoria: '20-29',
       },
       {
         corredor: corredorEjemplo._id,
+        carrera: race3._id,
         nombreCarrera: 'Desafío Quebrada Trail 2025',
         fecha: new Date('2025-08-10'),
         distancia: 15,
         tiempoSegundos: 4365, // 01:12:45
         posicionGeneral: 8,
-        posicionCategoria: 2,
+        posicionCategoria: 3,
         posicionSexo: 7,
-        categoria: '30-39 Masculino',
+        categoria: '20-29',
       },
       {
         corredor: corredorEjemplo._id,
-        nombreCarrera: 'Trail Bosque Encantado 2026',
-        fecha: new Date('2026-02-14'),
+        nombreCarrera: 'Trail Almafuerte',
+        fecha: new Date('2026-06-14'),
         distancia: 30,
-        tiempoSegundos: 9610, // 02:40:10
-        posicionGeneral: 19,
-        posicionCategoria: 5,
-        posicionSexo: 16,
-        categoria: '30-39 Masculino',
+        tiempoSegundos: 8920, // 02:28:40
+        posicionGeneral: null, // Pendiente de cómputo por SuperAdmin
+        posicionCategoria: null, // Pendiente de cómputo por SuperAdmin
+        posicionSexo: null,
+        categoria: '20-29',
       },
       {
         corredor: corredorEjemplo._id,
-        nombreCarrera: 'Cross Country Los Molinos 2026',
-        fecha: new Date('2026-05-18'),
-        distancia: 12,
-        tiempoSegundos: 3260, // 00:54:20 -> Mejor tiempo récord personal
-        posicionGeneral: 5,
-        posicionCategoria: 1,
-        posicionSexo: 4,
-        categoria: '30-39 Masculino',
+        nombreCarrera: 'El Sanba Corre',
+        fecha: new Date('2026-09-05'),
+        distancia: 10,
+        tiempoSegundos: null, // Pendiente de carga por SuperAdmin
+        posicionGeneral: null, // Pendiente
+        posicionCategoria: null, // Pendiente
+        posicionSexo: null,
+        categoria: null,
       },
     ];
 
