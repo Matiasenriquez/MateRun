@@ -16,11 +16,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/api';
 import { Race } from '../../types';
-import { User, Plus, X, AlertCircle, CheckCircle2, Calendar, MapPin } from 'lucide-react';
+import { User, Plus, X, AlertCircle, CheckCircle2, Calendar, MapPin, Lock } from 'lucide-react';
 
 export const RaceRegistrationForm: React.FC = () => {
   // Parámetro de la URL con el identificador de la carrera
@@ -101,6 +101,25 @@ export const RaceRegistrationForm: React.FC = () => {
       if (user.apellido) setApellido(user.apellido);
       if (user.dni) setDni(user.dni);
       if (user.email) setEmail(user.email);
+      if (user.telefono) setTelefono(user.telefono);
+      if (user.fechaNacimiento) {
+        const d = new Date(user.fechaNacimiento);
+        if (!isNaN(d.getTime())) {
+          setFechaNacimiento(d.toISOString().split('T')[0]);
+        }
+      }
+      if (user.sexo) {
+        setSexo(user.sexo === 'Femenino' ? 'Mujer' : 'Hombre');
+      }
+      if (user.ciudad || user.provincia) {
+        setCiudadProvincia([user.ciudad, user.provincia].filter(Boolean).join(', '));
+      }
+      if (user.contactoEmergencia) {
+        const emergencyTel = typeof user.contactoEmergencia === 'object'
+          ? user.contactoEmergencia.telefono
+          : user.contactoEmergencia;
+        if (emergencyTel) setContactoEmergencia(emergencyTel);
+      }
     }
   }, [user]);
 
@@ -128,21 +147,21 @@ export const RaceRegistrationForm: React.FC = () => {
       return;
     }
 
-    // Validar campos requeridos
+    // Validar datos de perfil requeridos
+    if (!nombre.trim() || !apellido.trim() || !dni.trim() || !email.trim() || !sexo || !fechaNacimiento) {
+      setFormError('Tus datos personales oficiales están incompletos en tu perfil. Por favor dirígete a tu Perfil de Corredor para completarlos antes de inscribirte.');
+      return;
+    }
+
+    // Validar campos específicos de la carrera
     if (
-      !nombre.trim() ||
-      !apellido.trim() ||
-      !dni.trim() ||
-      !email.trim() ||
       !telefono.trim() ||
       !contactoEmergencia.trim() ||
-      !sexo ||
-      !fechaNacimiento ||
       !distancia ||
       !ciudadProvincia.trim() ||
       !talleRemera
     ) {
-      setFormError('Por favor complete todos los campos del formulario antes de continuar.');
+      setFormError('Por favor complete todos los campos requeridos para la inscripción (teléfono, contacto de emergencia, distancia, ciudad/provincia y talle).');
       return;
     }
 
@@ -252,70 +271,92 @@ export const RaceRegistrationForm: React.FC = () => {
           </h2>
         </div>
 
+        {/* AVISO DE IDENTIDAD PROTEGIDA Y BLOQUEO DE DATOS PERSONALES */}
+        <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 flex items-start gap-3 text-xs text-slate-600 mb-6 shadow-2xs">
+          <Lock className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-slate-800">Identidad del corredor protegida</p>
+            <p className="mt-0.5 text-slate-500 leading-relaxed">
+              Tus datos oficiales (<strong>Nombre, Apellido, DNI, Fecha de nacimiento, Sexo y Correo electrónico</strong>) se autocompletan directamente a partir de tu perfil personal y permanecen bloqueados para su edición en este formulario. Si necesitas modificarlos, debes hacerlo desde tu{' '}
+              <Link to="/profile" className="text-machine font-bold hover:underline">
+                Perfil de Corredor
+              </Link>.
+            </p>
+          </div>
+        </div>
+
         {/* FORMULARIO */}
         <form onSubmit={handleOpenConfirmation} className="space-y-4">
           
-          {/* 1. Nombre */}
+          {/* 1. Nombre (Bloqueado) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 sm:items-center gap-1.5 sm:gap-4">
-            <label className="text-sm font-bold text-slate-800">Nombre</label>
+            <div className="flex items-center gap-1.5">
+              <label className="text-sm font-bold text-slate-800">Nombre</label>
+              <span title="Dato de perfil protegido"><Lock className="w-3.5 h-3.5 text-slate-400" /></span>
+            </div>
             <div className="sm:col-span-2">
               <input
                 type="text"
                 value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                placeholder="Ingrese el nombre"
-                className="input-field"
-                required
+                disabled
+                placeholder="Nombre del corredor"
+                className="input-field bg-slate-100 text-slate-600 font-medium cursor-not-allowed border-slate-200 select-none"
               />
             </div>
           </div>
 
-          {/* 2. Apellido */}
+          {/* 2. Apellido (Bloqueado) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 sm:items-center gap-1.5 sm:gap-4">
-            <label className="text-sm font-bold text-slate-800">Apellido</label>
+            <div className="flex items-center gap-1.5">
+              <label className="text-sm font-bold text-slate-800">Apellido</label>
+              <span title="Dato de perfil protegido"><Lock className="w-3.5 h-3.5 text-slate-400" /></span>
+            </div>
             <div className="sm:col-span-2">
               <input
                 type="text"
                 value={apellido}
-                onChange={(e) => setApellido(e.target.value)}
-                placeholder="Ingrese el apellido"
-                className="input-field"
-                required
+                disabled
+                placeholder="Apellido del corredor"
+                className="input-field bg-slate-100 text-slate-600 font-medium cursor-not-allowed border-slate-200 select-none"
               />
             </div>
           </div>
 
-          {/* 3. DNI */}
+          {/* 3. DNI (Bloqueado) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 sm:items-center gap-1.5 sm:gap-4">
-            <label className="text-sm font-bold text-slate-800">DNI</label>
+            <div className="flex items-center gap-1.5">
+              <label className="text-sm font-bold text-slate-800">DNI</label>
+              <span title="Dato de perfil protegido"><Lock className="w-3.5 h-3.5 text-slate-400" /></span>
+            </div>
             <div className="sm:col-span-2">
               <input
                 type="text"
                 value={dni}
-                onChange={(e) => setDni(e.target.value)}
-                placeholder="Ingrese el DNI"
-                className="input-field"
-                required
+                disabled
+                placeholder="DNI del corredor"
+                className="input-field bg-slate-100 text-slate-600 font-medium cursor-not-allowed border-slate-200 select-none"
               />
             </div>
           </div>
 
-          {/* 4. Correo Electrónico */}
+          {/* 4. Correo Electrónico (Bloqueado) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 sm:items-center gap-1.5 sm:gap-4">
-            <label className="text-sm font-bold text-slate-800">Correo electrónico</label>
+            <div className="flex items-center gap-1.5">
+              <label className="text-sm font-bold text-slate-800">Correo electrónico</label>
+              <span title="Dato de perfil protegido"><Lock className="w-3.5 h-3.5 text-slate-400" /></span>
+            </div>
             <div className="sm:col-span-2">
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Ingrese el correo electrónico"
-                className="input-field"
-                required
+                disabled
+                placeholder="Correo electrónico del corredor"
+                className="input-field bg-slate-100 text-slate-600 font-medium cursor-not-allowed border-slate-200 select-none"
               />
             </div>
           </div>
 
-          {/* 5. Teléfono (Solo numérico) */}
+          {/* 5. Teléfono (Modificable en la inscripción) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 sm:items-center gap-1.5 sm:gap-4">
             <label className="text-sm font-bold text-slate-800">Teléfono</label>
             <div className="sm:col-span-2">
@@ -331,7 +372,7 @@ export const RaceRegistrationForm: React.FC = () => {
             </div>
           </div>
 
-          {/* 6. Contacto de Emergencia (Solo numérico) */}
+          {/* 6. Contacto de Emergencia (Modificable en la inscripción) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 sm:items-center gap-1.5 sm:gap-4">
             <label className="text-sm font-bold text-slate-800">Contacto de emergencia</label>
             <div className="sm:col-span-2">
@@ -347,15 +388,17 @@ export const RaceRegistrationForm: React.FC = () => {
             </div>
           </div>
 
-          {/* 7. Sexo (ComboBox: Mujer / Hombre) */}
+          {/* 7. Sexo (Bloqueado) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 sm:items-center gap-1.5 sm:gap-4">
-            <label className="text-sm font-bold text-slate-800">Sexo</label>
+            <div className="flex items-center gap-1.5">
+              <label className="text-sm font-bold text-slate-800">Sexo</label>
+              <span title="Dato de perfil protegido"><Lock className="w-3.5 h-3.5 text-slate-400" /></span>
+            </div>
             <div className="sm:col-span-2">
               <select
                 value={sexo}
-                onChange={(e) => setSexo(e.target.value)}
-                className="input-field"
-                required
+                disabled
+                className="input-field bg-slate-100 text-slate-600 font-medium cursor-not-allowed border-slate-200 select-none"
               >
                 <option value="Mujer">Mujer</option>
                 <option value="Hombre">Hombre</option>
@@ -363,16 +406,18 @@ export const RaceRegistrationForm: React.FC = () => {
             </div>
           </div>
 
-          {/* 8. Fecha de Nacimiento (DateTimePicker / HTML5 Date) */}
+          {/* 8. Fecha de Nacimiento (Bloqueado) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 sm:items-center gap-1.5 sm:gap-4">
-            <label className="text-sm font-bold text-slate-800">Fecha de nacimiento</label>
+            <div className="flex items-center gap-1.5">
+              <label className="text-sm font-bold text-slate-800">Fecha de nacimiento</label>
+              <span title="Dato de perfil protegido"><Lock className="w-3.5 h-3.5 text-slate-400" /></span>
+            </div>
             <div className="sm:col-span-2">
               <input
                 type="date"
                 value={fechaNacimiento}
-                onChange={(e) => setFechaNacimiento(e.target.value)}
-                className="input-field"
-                required
+                disabled
+                className="input-field bg-slate-100 text-slate-600 font-medium cursor-not-allowed border-slate-200 select-none"
               />
             </div>
           </div>

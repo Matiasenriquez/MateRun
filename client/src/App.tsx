@@ -18,6 +18,7 @@ import { Dashboard } from './pages/Dashboard';
 import { MyRegistrations } from './pages/corredor/MyRegistrations';
 import { MyStats } from './pages/corredor/MyStats';
 import { RaceRegistrationForm } from './pages/corredor/RaceRegistrationForm';
+import { RunnerProfile } from './pages/corredor/RunnerProfile';
 import { RaceManagement } from './pages/superadmin/RaceManagement';
 import { UserManagement } from './pages/superadmin/UserManagement';
 import { RaceRoster } from './pages/superadmin/RaceRoster';
@@ -51,6 +52,10 @@ export const App: React.FC = () => {
             <Route 
               path="/register-race/:raceId" 
               element={<ProtectedRoute allowedRoles={['corredor']}><RaceRegistrationForm /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/profile" 
+              element={<ProtectedRoute allowedRoles={['corredor']}><RunnerProfile /></ProtectedRoute>} 
             />
             
             {/* Rutas exclusivas de SuperAdmin */}

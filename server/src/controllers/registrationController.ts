@@ -157,17 +157,35 @@ export const registerRunner = async (req: Request, res: Response): Promise<void>
       }
     }
 
-    // 1. Validar campos requeridos
+    // 1. Obtener los datos del perfil oficial del usuario autenticado
+    const userProfile = await User.findById(userId);
+    if (!userProfile) {
+      res.status(404).json({ error: 'Usuario no encontrado' });
+      return;
+    }
+
+    // REGLA DE NEGOCIO ESTRICTA:
+    // Los datos personales (Nombre, Apellido, DNI, Fecha de nacimiento, Sexo y Correo electrónico)
+    // provienen SIEMPRE de forma garantizada del perfil del usuario autenticado para impedir
+    // que un usuario utilice su cuenta para inscribir a otra persona.
+    const finalNombre = userProfile.nombre;
+    const finalApellido = userProfile.apellido;
+    const finalDni = userProfile.dni;
+    const finalEmail = userProfile.email;
+    const finalFechaNacimiento = userProfile.fechaNacimiento || (fechaNacimiento ? new Date(fechaNacimiento) : undefined);
+    const finalSexo = userProfile.sexo || normalizedSexo;
+
+    // Validar campos requeridos generales
     if (
       !carreraId ||
       !distancia ||
       !talleRemera ||
-      !nombre ||
-      !apellido ||
-      !dni ||
-      !email ||
-      !fechaNacimiento ||
-      !sexo ||
+      !finalNombre ||
+      !finalApellido ||
+      !finalDni ||
+      !finalEmail ||
+      !finalFechaNacimiento ||
+      !finalSexo ||
       !finalCiudad ||
       !finalProvincia
     ) {
@@ -247,7 +265,7 @@ export const registerRunner = async (req: Request, res: Response): Promise<void>
     }
 
     // 6. Asignar automáticamente la categoría por edad al evento
-    const assignedCategory = determineRunnerCategory(fechaNacimiento, race.fecha, race.categorias);
+    const assignedCategory = determineRunnerCategory(finalFechaNacimiento, race.fecha, race.categorias);
 
     // Crear la inscripción con snapshot de los datos del corredor
     const newRegistration = new Registration({
@@ -256,16 +274,16 @@ export const registerRunner = async (req: Request, res: Response): Promise<void>
       dorsal: assignedDorsal,
       distancia: distNumber,
       datosCorredor: {
-        nombre: nombre.trim(),
-        apellido: apellido.trim(),
-        dni: dni.trim(),
-        email: email.toLowerCase().trim(),
-        telefono: telefono ? telefono.trim() : '',
-        fechaNacimiento: new Date(fechaNacimiento),
-        sexo: normalizedSexo,
+        nombre: finalNombre.trim(),
+        apellido: finalApellido.trim(),
+        dni: finalDni.trim(),
+        email: finalEmail.toLowerCase().trim(),
+        telefono: telefono ? telefono.trim() : (userProfile.telefono || ''),
+        fechaNacimiento: new Date(finalFechaNacimiento),
+        sexo: finalSexo,
         ciudad: finalCiudad,
         provincia: finalProvincia,
-        contactoEmergencia: formattedContactoEmergencia,
+        contactoEmergencia: formattedContactoEmergencia || userProfile.contactoEmergencia,
       },
       talleRemera,
       estado: 'Pendiente',
@@ -280,7 +298,7 @@ export const registerRunner = async (req: Request, res: Response): Promise<void>
       carrera: carreraId,
       tipo: 'NUEVA_INSCRIPCION',
       usuarioResponsable: userId,
-      descripcion: `Inscripción online: ${nombre} ${apellido} (DNI ${dni}) en distancia ${distNumber}k con dorsal #${assignedDorsal}`,
+      descripcion: `Inscripción online: ${finalNombre} ${finalApellido} (DNI ${finalDni}) en distancia ${distNumber}k con dorsal #${assignedDorsal}`,
       detalles: {
         registrationId: newRegistration._id,
         dorsal: assignedDorsal,

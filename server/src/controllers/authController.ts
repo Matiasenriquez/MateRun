@@ -276,6 +276,8 @@ export const updateMe = async (req: Request, res: Response): Promise<void> => {
     const {
       nombre,
       apellido,
+      dni,
+      email,
       telefono,
       fechaNacimiento,
       sexo,
@@ -290,15 +292,58 @@ export const updateMe = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Actualizar campos permitidos
+    // 1. Validar DNI si fue modificado (debe ser único)
+    if (dni && dni.trim() !== user.dni) {
+      const cleanDni = dni.trim();
+      const existingDni = await User.findOne({ dni: cleanDni, _id: { $ne: user._id } });
+      if (existingDni) {
+        res.status(400).json({
+          error: 'DNI ya registrado',
+          message: 'El número de DNI ingresado ya se encuentra registrado por otro usuario.',
+        });
+        return;
+      }
+      user.dni = cleanDni;
+    }
+
+    // 2. Validar Correo Electrónico si fue modificado (debe ser único)
+    if (email && email.toLowerCase().trim() !== user.email) {
+      const cleanEmail = email.toLowerCase().trim();
+      const existingEmail = await User.findOne({ email: cleanEmail, _id: { $ne: user._id } });
+      if (existingEmail) {
+        res.status(400).json({
+          error: 'Correo ya registrado',
+          message: 'El correo electrónico ingresado ya se encuentra en uso por otra cuenta.',
+        });
+        return;
+      }
+      user.email = cleanEmail;
+    }
+
+    // 3. Actualizar campos personales
     if (nombre) user.nombre = nombre.trim();
     if (apellido) user.apellido = apellido.trim();
-    if (telefono !== undefined) user.telefono = telefono?.trim();
+    if (telefono !== undefined) user.telefono = telefono ? telefono.trim() : '';
     if (fechaNacimiento) user.fechaNacimiento = new Date(fechaNacimiento);
-    if (sexo) user.sexo = sexo;
-    if (ciudad !== undefined) user.ciudad = ciudad?.trim();
-    if (provincia !== undefined) user.provincia = provincia?.trim();
-    if (contactoEmergencia) user.contactoEmergencia = contactoEmergencia;
+    if (sexo) {
+      user.sexo = (sexo === 'Mujer' || sexo === 'Femenino') ? 'Femenino' : 'Masculino';
+    }
+    if (ciudad !== undefined) user.ciudad = ciudad ? ciudad.trim() : '';
+    if (provincia !== undefined) user.provincia = provincia ? provincia.trim() : '';
+
+    if (contactoEmergencia) {
+      if (typeof contactoEmergencia === 'object') {
+        user.contactoEmergencia = {
+          nombre: contactoEmergencia.nombre ? contactoEmergencia.nombre.trim() : 'Contacto de Emergencia',
+          telefono: contactoEmergencia.telefono ? String(contactoEmergencia.telefono).trim() : '',
+        };
+      } else if (typeof contactoEmergencia === 'string' && contactoEmergencia.trim() !== '') {
+        user.contactoEmergencia = {
+          nombre: user.contactoEmergencia?.nombre || 'Contacto de Emergencia',
+          telefono: contactoEmergencia.trim(),
+        };
+      }
+    }
 
     await user.save();
 
@@ -306,7 +351,7 @@ export const updateMe = async (req: Request, res: Response): Promise<void> => {
     delete userSafe.password;
 
     res.status(200).json({
-      message: 'Datos actualizados con éxito',
+      message: 'Datos personales actualizados con éxito',
       user: userSafe,
     });
   } catch (error: any) {

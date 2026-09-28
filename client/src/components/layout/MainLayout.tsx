@@ -14,7 +14,7 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, User as UserIcon, Settings, Calendar, Activity, FileText } from 'lucide-react';
+import { LogOut, User as UserIcon, Settings, Calendar, Activity, FileText, Edit2 } from 'lucide-react';
 
 export const MainLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -57,16 +57,39 @@ export const MainLayout: React.FC = () => {
         </div>
 
         {/* PERFIL Y LOGOUT */}
-        <div className="flex items-center gap-4">
-          <div className="hidden sm:flex items-center gap-2 text-sm font-medium text-slate-700">
-            <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center border border-slate-200">
-              <UserIcon className="w-4 h-4 text-slate-600" />
+        <div className="flex items-center gap-3">
+          {/* Opción de acceso a edición de datos para el Corredor */}
+          {user?.rol === 'corredor' ? (
+            <Link
+              to="/profile"
+              className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-machine/40 transition-all text-sm font-semibold text-slate-700 shadow-2xs group cursor-pointer"
+              title="Haz clic para ver y editar tus datos personales"
+            >
+              <div className="w-8 h-8 bg-machine/10 text-machine rounded-full flex items-center justify-center group-hover:bg-machine group-hover:text-white transition-colors border border-machine/20 font-bold text-xs">
+                <UserIcon className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="text-xs font-bold text-slate-800 leading-tight group-hover:text-machine transition-colors">
+                  {user.nombre} {user.apellido}
+                </span>
+                <span className="text-[10px] text-machine font-bold flex items-center gap-1">
+                  <Edit2 className="w-2.5 h-2.5" />
+                  Editar datos
+                </span>
+              </div>
+            </Link>
+          ) : (
+            <div className="hidden sm:flex items-center gap-2 text-sm font-medium text-slate-700">
+              <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center border border-slate-200">
+                <UserIcon className="w-4 h-4 text-slate-600" />
+              </div>
+              <span>{user?.nombre} {user?.apellido}</span>
             </div>
-            <span>{user?.nombre} {user?.apellido}</span>
-          </div>
+          )}
+
           <button
             onClick={handleLogout}
-            className="text-slate-500 hover:text-machine transition-colors p-2 cursor-pointer"
+            className="text-slate-500 hover:text-machine transition-colors p-2 cursor-pointer rounded-lg hover:bg-slate-100"
             title="Cerrar sesión"
           >
             <LogOut className="w-5 h-5" />
