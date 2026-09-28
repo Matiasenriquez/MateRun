@@ -36,6 +36,7 @@ export interface User {
   sexo?: 'Masculino' | 'Femenino';
   ciudad?: string;
   provincia?: string;
+  fotoPerfil?: string | null;
   contactoEmergencia?: {
     nombre: string;
     telefono: string;

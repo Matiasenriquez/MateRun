@@ -33,6 +33,7 @@ export interface IUser extends Document {
   sexo?: 'Masculino' | 'Femenino';
   ciudad?: string;
   provincia?: string;
+  fotoPerfil?: string | null;
   contactoEmergencia?: {
     nombre: string;
     telefono: string;
@@ -99,6 +100,10 @@ const UserSchema = new Schema<IUser>(
     provincia: {
       type: String,
       trim: true,
+    },
+    fotoPerfil: {
+      type: String,
+      default: null,
     },
     contactoEmergencia: {
       nombre: { type: String, trim: true },

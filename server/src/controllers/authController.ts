@@ -284,6 +284,7 @@ export const updateMe = async (req: Request, res: Response): Promise<void> => {
       ciudad,
       provincia,
       contactoEmergencia,
+      fotoPerfil,
     } = req.body;
 
     const user = await User.findById(req.user.id);
@@ -343,6 +344,13 @@ export const updateMe = async (req: Request, res: Response): Promise<void> => {
           telefono: contactoEmergencia.trim(),
         };
       }
+    }
+
+    // 4. Actualizar foto de perfil (permite guardar data URL o null/vacío para eliminarla)
+    if (fotoPerfil !== undefined) {
+      user.fotoPerfil = fotoPerfil && typeof fotoPerfil === 'string' && fotoPerfil.trim() !== ''
+        ? fotoPerfil.trim()
+        : null;
     }
 
     await user.save();

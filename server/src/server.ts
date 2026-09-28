@@ -66,14 +66,15 @@ app.use(
 /**
  * Middleware: express.json()
  * Analiza las peticiones entrantes con cargas útiles (payloads) formateadas en JSON.
+ * Se amplía el límite a 10mb para permitir la carga segura de imágenes de perfil en base64.
  */
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 /**
  * Middleware: express.urlencoded()
  * Analiza peticiones codificadas en URL (formularios estándar).
  */
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 /**
  * Middleware de Registro Básico (Request Logger para desarrollo)

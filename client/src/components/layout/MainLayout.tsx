@@ -65,8 +65,16 @@ export const MainLayout: React.FC = () => {
               className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-machine/40 transition-all text-sm font-semibold text-slate-700 shadow-2xs group cursor-pointer"
               title="Haz clic para ver y editar tus datos personales"
             >
-              <div className="w-8 h-8 bg-machine/10 text-machine rounded-full flex items-center justify-center group-hover:bg-machine group-hover:text-white transition-colors border border-machine/20 font-bold text-xs">
-                <UserIcon className="w-4 h-4" />
+              <div className="w-8 h-8 bg-machine/10 text-machine rounded-full flex items-center justify-center group-hover:border-machine transition-colors border border-machine/20 font-bold text-xs overflow-hidden flex-shrink-0">
+                {user.fotoPerfil ? (
+                  <img
+                    src={user.fotoPerfil}
+                    alt={`${user.nombre} ${user.apellido}`}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <UserIcon className="w-4 h-4" />
+                )}
               </div>
               <div className="flex flex-col text-left">
                 <span className="text-xs font-bold text-slate-800 leading-tight group-hover:text-machine transition-colors">
@@ -80,8 +88,16 @@ export const MainLayout: React.FC = () => {
             </Link>
           ) : (
             <div className="hidden sm:flex items-center gap-2 text-sm font-medium text-slate-700">
-              <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center border border-slate-200">
-                <UserIcon className="w-4 h-4 text-slate-600" />
+              <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center border border-slate-200 overflow-hidden flex-shrink-0">
+                {user?.fotoPerfil ? (
+                  <img
+                    src={user.fotoPerfil}
+                    alt={`${user.nombre} ${user.apellido}`}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <UserIcon className="w-4 h-4 text-slate-600" />
+                )}
               </div>
               <span>{user?.nombre} {user?.apellido}</span>
             </div>

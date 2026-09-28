@@ -25,7 +25,10 @@ import {
   ShieldCheck, 
   MapPin, 
   Heart,
-  Loader2
+  Loader2,
+  Camera,
+  Upload,
+  Trash2
 } from 'lucide-react';
 
 export const RunnerProfile: React.FC = () => {
@@ -42,8 +45,11 @@ export const RunnerProfile: React.FC = () => {
   const [sexo, setSexo] = useState<string>('Mujer');
   const [ciudad, setCiudad] = useState<string>('');
   const [provincia, setProvincia] = useState<string>('');
+  const [fotoPerfil, setFotoPerfil] = useState<string | null>(null);
   const [contactoEmergenciaNombre, setContactoEmergenciaNombre] = useState<string>('');
   const [contactoEmergenciaTelefono, setContactoEmergenciaTelefono] = useState<string>('');
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Estados de feedback y carga
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -72,6 +78,7 @@ export const RunnerProfile: React.FC = () => {
 
       setCiudad(user.ciudad || '');
       setProvincia(user.provincia || '');
+      setFotoPerfil(user.fotoPerfil || null);
 
       if (user.contactoEmergencia) {
         if (typeof user.contactoEmergencia === 'object') {
@@ -88,6 +95,52 @@ export const RunnerProfile: React.FC = () => {
   const handleNumericInput = (setter: (val: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const onlyDigits = e.target.value.replace(/\D/g, '');
     setter(onlyDigits);
+  };
+
+  // Manejador para carga y optimización de foto de perfil
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('El archivo seleccionado no es una imagen válida (JPG, PNG, WebP).');
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setErrorMessage('La imagen es demasiado grande. Por favor selecciona una imagen de menos de 15MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Redimensionar y recortar al centro a 400x400 para un avatar perfecto
+        const size = 400;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const minDim = Math.min(img.width, img.height);
+        const sx = (img.width - minDim) / 2;
+        const sy = (img.height - minDim) / 2;
+
+        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+        const optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        setFotoPerfil(optimizedDataUrl);
+        setErrorMessage('');
+        setSuccessMessage('Foto cargada. Recuerda hacer clic en "Guardar Cambios" para confirmar.');
+      };
+      img.onerror = () => {
+        setErrorMessage('No se pudo procesar la imagen seleccionada.');
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   // Manejador del guardado de cambios
@@ -125,6 +178,7 @@ export const RunnerProfile: React.FC = () => {
         sexo, // El backend normaliza 'Mujer' / 'Hombre'
         ciudad: ciudad.trim(),
         provincia: provincia.trim(),
+        fotoPerfil,
         contactoEmergencia: {
           nombre: contactoEmergenciaNombre.trim() || 'Contacto de Emergencia',
           telefono: contactoEmergenciaTelefono.trim(),
@@ -136,7 +190,7 @@ export const RunnerProfile: React.FC = () => {
         updateUser(res.data.user);
       }
 
-      setSuccessMessage('¡Datos personales actualizados exitosamente! La nueva información se utilizará de forma automática en tus próximas inscripciones.');
+      setSuccessMessage('¡Datos personales actualizados exitosamente! La nueva información y foto se utilizarán de forma automática en toda la plataforma.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       console.error('Error al actualizar datos personales:', err);
@@ -161,15 +215,39 @@ export const RunnerProfile: React.FC = () => {
         </button>
       </div>
 
-      {/* ENCABEZADO DE LA SECCIÓN */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-machine/10 text-machine flex items-center justify-center border-2 border-machine/20 font-black text-xl">
-            {nombre ? nombre.charAt(0).toUpperCase() : 'C'}
-            {apellido ? apellido.charAt(0).toUpperCase() : ''}
+      {/* ENCABEZADO DE LA SECCIÓN Y FOTO DE PERFIL */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+          {/* Avatar con botón de cámara */}
+          <div className="relative group flex-shrink-0">
+            <div className="w-24 h-24 rounded-full bg-machine/10 text-machine flex items-center justify-center border-4 border-machine/20 font-black text-2xl shadow-sm overflow-hidden bg-slate-50">
+              {fotoPerfil ? (
+                <img
+                  src={fotoPerfil}
+                  alt="Foto de perfil"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>
+                  {nombre ? nombre.charAt(0).toUpperCase() : 'C'}
+                  {apellido ? apellido.charAt(0).toUpperCase() : ''}
+                </span>
+              )}
+            </div>
+
+            {/* Botón flotante para cambiar foto */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute bottom-0 right-0 p-2 bg-machine text-white rounded-full shadow-md hover:bg-machine-dark transition-all hover:scale-105 cursor-pointer border-2 border-white"
+              title="Cargar o modificar foto de perfil"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
+
+          <div className="flex-1 text-center sm:text-left">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
               <span className="text-[11px] font-black uppercase tracking-wider text-machine bg-machine-light px-2.5 py-0.5 rounded">
                 Perfil Oficial
               </span>
@@ -177,12 +255,44 @@ export const RunnerProfile: React.FC = () => {
                 Corredor
               </span>
             </div>
-            <h1 className="text-2xl font-black text-slate-800 mt-1 tracking-tight">
+            <h1 className="text-2xl font-black text-slate-800 mt-2 tracking-tight">
               Mis Datos Personales
             </h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Edita tu información personal para mantener siempre actualizados tus registros deportivos e inscripciones.
+            <p className="text-xs text-slate-500 mt-1 max-w-xl">
+              Edita tu información personal y foto de perfil para mantener siempre actualizados tus registros deportivos e inscripciones.
             </p>
+
+            {/* Controles de Foto de Perfil */}
+            <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5 text-machine" />
+                <span>{fotoPerfil ? 'Modificar foto' : 'Cargar foto'}</span>
+              </button>
+              {fotoPerfil && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFotoPerfil(null);
+                    setSuccessMessage('Foto eliminada. Recuerda hacer clic en "Guardar Cambios" para confirmar.');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                  <span>Eliminar foto</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
