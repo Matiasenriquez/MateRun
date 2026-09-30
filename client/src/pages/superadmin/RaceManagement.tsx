@@ -14,6 +14,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/api';
 import { Race, RaceCategory, User } from '../../types';
 import { 
@@ -35,7 +36,8 @@ import {
   Sparkles,
   Filter,
   Eye,
-  EyeOff
+  EyeOff,
+  History
 } from 'lucide-react';
 
 // Mapeo de meses en español (0 = Enero, 11 = Diciembre)
@@ -70,6 +72,8 @@ const normalizeText = (text: string | null | undefined): string => {
 };
 
 export const RaceManagement: React.FC = () => {
+  const navigate = useNavigate();
+
   // Lista de carreras y administradores
   const [races, setRaces] = useState<Race[]>([]);
   const [admins, setAdmins] = useState<User[]>([]);
@@ -743,6 +747,17 @@ export const RaceManagement: React.FC = () => {
                       <td className="px-5 py-4 text-center">
                         <div className="flex items-center justify-center gap-2">
                           
+                          {/* Botón Historial */}
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/race-history/${r._id}`)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                            title="Ver historial y auditoría de la carrera"
+                          >
+                            <History className="w-3.5 h-3.5 text-machine" />
+                            <span>Historial</span>
+                          </button>
+
                           {/* Botón Editar */}
                           <button
                             type="button"

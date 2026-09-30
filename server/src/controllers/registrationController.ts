@@ -298,11 +298,37 @@ export const registerRunner = async (req: Request, res: Response): Promise<void>
       carrera: carreraId,
       tipo: 'NUEVA_INSCRIPCION',
       usuarioResponsable: userId,
-      descripcion: `Inscripción online: ${finalNombre} ${finalApellido} (DNI ${finalDni}) en distancia ${distNumber}k con dorsal #${assignedDorsal}`,
+      descripcion: `Alta de corredor: ${finalNombre} ${finalApellido} (DNI ${finalDni}) con dorsal #${assignedDorsal}`,
       detalles: {
         registrationId: newRegistration._id,
+        corredor: {
+          nombre: finalNombre,
+          apellido: finalApellido,
+          dni: finalDni,
+        },
         dorsal: assignedDorsal,
         distancia: distNumber,
+        estado: 'Pendiente',
+        cambios: [
+          {
+            campo: 'Alta',
+            etiqueta: 'Inscripción en Carrera',
+            valorAnterior: '-',
+            nuevoValor: `Inscripto en ${distNumber}k`,
+          },
+          {
+            campo: 'Dorsal',
+            etiqueta: 'Dorsal Asignado',
+            valorAnterior: '-',
+            nuevoValor: assignedDorsal,
+          },
+          {
+            campo: 'Estado',
+            etiqueta: 'Estado de Acreditación',
+            valorAnterior: '-',
+            nuevoValor: 'Pendiente',
+          },
+        ],
       },
       fecha: new Date(),
     });
@@ -465,11 +491,37 @@ export const registerByAdmin = async (req: Request, res: Response): Promise<void
       carrera: carreraId,
       tipo: 'NUEVA_INSCRIPCION',
       usuarioResponsable: adminId,
-      descripcion: `Inscripción manual por Admin: ${nombre} ${apellido} (DNI ${dni}) con dorsal #${dorsalNumber}`,
+      descripcion: `Alta manual de corredor: ${nombre} ${apellido} (DNI ${dni}) con dorsal #${dorsalNumber}`,
       detalles: {
         registrationId: newRegistration._id,
+        corredor: {
+          nombre,
+          apellido,
+          dni,
+        },
         dorsal: dorsalNumber,
         distancia: Number(distancia),
+        estado: 'Pendiente',
+        cambios: [
+          {
+            campo: 'Alta',
+            etiqueta: 'Inscripción en Carrera',
+            valorAnterior: '-',
+            nuevoValor: `Inscripto en ${distancia}k`,
+          },
+          {
+            campo: 'Dorsal',
+            etiqueta: 'Dorsal Asignado',
+            valorAnterior: '-',
+            nuevoValor: dorsalNumber,
+          },
+          {
+            campo: 'Estado',
+            etiqueta: 'Estado de Acreditación',
+            valorAnterior: '-',
+            nuevoValor: 'Pendiente',
+          },
+        ],
       },
       fecha: new Date(),
     });
@@ -644,8 +696,22 @@ export const updateAccreditationStatus = async (req: Request, res: Response): Pr
       descripcion: `Cambio de estado para ${registration.datosCorredor.nombre} ${registration.datosCorredor.apellido} (Dorsal #${registration.dorsal}): de '${estadoAnterior}' a '${nuevoEstado}'`,
       detalles: {
         registrationId: registration._id,
+        corredor: {
+          nombre: registration.datosCorredor.nombre,
+          apellido: registration.datosCorredor.apellido,
+          dni: registration.datosCorredor.dni,
+        },
+        dorsal: registration.dorsal,
         estadoAnterior,
         nuevoEstado,
+        cambios: [
+          {
+            campo: 'Estado',
+            etiqueta: 'Estado de Acreditación',
+            valorAnterior: estadoAnterior,
+            nuevoValor: nuevoEstado,
+          },
+        ],
       },
       fecha: new Date(),
     });
@@ -670,6 +736,7 @@ export const updateRegistration = async (req: Request, res: Response): Promise<v
   try {
     const { id } = req.params;
     const {
+      dorsal,
       distancia,
       talleRemera,
       nombre,
@@ -689,27 +756,156 @@ export const updateRegistration = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    if (distancia) registration.distancia = Number(distancia);
-    if (talleRemera) registration.talleRemera = talleRemera;
+    const cambios: Array<{ campo: string; etiqueta: string; valorAnterior: any; nuevoValor: any }> = [];
 
-    if (nombre) registration.datosCorredor.nombre = nombre.trim();
-    if (apellido) registration.datosCorredor.apellido = apellido.trim();
-    if (dni) registration.datosCorredor.dni = dni.trim();
-    if (email) registration.datosCorredor.email = email.toLowerCase().trim();
-    if (telefono !== undefined) registration.datosCorredor.telefono = telefono.trim();
-    if (ciudad !== undefined) registration.datosCorredor.ciudad = ciudad.trim();
-    if (provincia !== undefined) registration.datosCorredor.provincia = provincia.trim();
-    if (contactoEmergencia) registration.datosCorredor.contactoEmergencia = contactoEmergencia;
+    // Modificación de dorsal
+    if (dorsal !== undefined && Number(dorsal) !== registration.dorsal) {
+      const newDorsalNum = Number(dorsal);
+      if (isNaN(newDorsalNum) || newDorsalNum < 1) {
+        res.status(400).json({ error: 'Dorsal inválido', message: 'El dorsal debe ser un número positivo' });
+        return;
+      }
+      const existingDorsal = await Registration.findOne({
+        carrera: registration.carrera,
+        dorsal: newDorsalNum,
+        _id: { $ne: registration._id },
+        estado: { $ne: 'Baja' },
+      });
+      if (existingDorsal) {
+        res.status(400).json({ error: 'Dorsal no disponible', message: 'Dorsal no disponible' });
+        return;
+      }
+      cambios.push({
+        campo: 'Dorsal',
+        etiqueta: 'Dorsal',
+        valorAnterior: registration.dorsal,
+        nuevoValor: newDorsalNum,
+      });
+      registration.dorsal = newDorsalNum;
+    }
+
+    // Modificación de distancia
+    if (distancia !== undefined && Number(distancia) !== registration.distancia) {
+      cambios.push({
+        campo: 'Distancia',
+        etiqueta: 'Distancia',
+        valorAnterior: `${registration.distancia}k`,
+        nuevoValor: `${Number(distancia)}k`,
+      });
+      registration.distancia = Number(distancia);
+    }
+
+    // Modificación de talle
+    if (talleRemera && talleRemera !== registration.talleRemera) {
+      cambios.push({
+        campo: 'Talle',
+        etiqueta: 'Talle de Remera',
+        valorAnterior: registration.talleRemera,
+        nuevoValor: talleRemera,
+      });
+      registration.talleRemera = talleRemera;
+    }
+
+    // Modificación de datos personales
+    if (nombre && nombre.trim() !== registration.datosCorredor.nombre) {
+      cambios.push({
+        campo: 'Nombre',
+        etiqueta: 'Nombre',
+        valorAnterior: registration.datosCorredor.nombre,
+        nuevoValor: nombre.trim(),
+      });
+      registration.datosCorredor.nombre = nombre.trim();
+    }
+
+    if (apellido && apellido.trim() !== registration.datosCorredor.apellido) {
+      cambios.push({
+        campo: 'Apellido',
+        etiqueta: 'Apellido',
+        valorAnterior: registration.datosCorredor.apellido,
+        nuevoValor: apellido.trim(),
+      });
+      registration.datosCorredor.apellido = apellido.trim();
+    }
+
+    if (dni && dni.trim() !== registration.datosCorredor.dni) {
+      cambios.push({
+        campo: 'DNI',
+        etiqueta: 'DNI',
+        valorAnterior: registration.datosCorredor.dni,
+        nuevoValor: dni.trim(),
+      });
+      registration.datosCorredor.dni = dni.trim();
+    }
+
+    if (email && email.toLowerCase().trim() !== registration.datosCorredor.email) {
+      cambios.push({
+        campo: 'Email',
+        etiqueta: 'Correo Electrónico',
+        valorAnterior: registration.datosCorredor.email,
+        nuevoValor: email.toLowerCase().trim(),
+      });
+      registration.datosCorredor.email = email.toLowerCase().trim();
+    }
+
+    if (telefono !== undefined && telefono.trim() !== (registration.datosCorredor.telefono || '')) {
+      cambios.push({
+        campo: 'Teléfono',
+        etiqueta: 'Teléfono',
+        valorAnterior: registration.datosCorredor.telefono || '-',
+        nuevoValor: telefono.trim(),
+      });
+      registration.datosCorredor.telefono = telefono.trim();
+    }
+
+    if (ciudad !== undefined && ciudad.trim() !== (registration.datosCorredor.ciudad || '')) {
+      cambios.push({
+        campo: 'Ciudad',
+        etiqueta: 'Ciudad',
+        valorAnterior: registration.datosCorredor.ciudad || '-',
+        nuevoValor: ciudad.trim(),
+      });
+      registration.datosCorredor.ciudad = ciudad.trim();
+    }
+
+    if (provincia !== undefined && provincia.trim() !== (registration.datosCorredor.provincia || '')) {
+      cambios.push({
+        campo: 'Provincia',
+        etiqueta: 'Provincia',
+        valorAnterior: registration.datosCorredor.provincia || '-',
+        nuevoValor: provincia.trim(),
+      });
+      registration.datosCorredor.provincia = provincia.trim();
+    }
+
+    if (contactoEmergencia) {
+      registration.datosCorredor.contactoEmergencia = contactoEmergencia;
+    }
 
     await registration.save();
 
-    // Registrar modificación en auditoría
+    // Registrar modificación en auditoría con detalle estructurado de cambios
     await AuditLog.create({
       carrera: registration.carrera,
       tipo: 'MODIFICACION',
       usuarioResponsable: adminId,
-      descripcion: `Modificación de datos de inscripción para ${registration.datosCorredor.nombre} ${registration.datosCorredor.apellido} (Dorsal #${registration.dorsal})`,
-      detalles: req.body,
+      descripcion: `Modificación de datos de corredor: ${registration.datosCorredor.nombre} ${registration.datosCorredor.apellido} (Dorsal #${registration.dorsal})`,
+      detalles: {
+        registrationId: registration._id,
+        corredor: {
+          nombre: registration.datosCorredor.nombre,
+          apellido: registration.datosCorredor.apellido,
+          dni: registration.datosCorredor.dni,
+        },
+        dorsal: registration.dorsal,
+        cambios: cambios.length > 0 ? cambios : [
+          {
+            campo: 'Datos',
+            etiqueta: 'Datos Personales',
+            valorAnterior: 'Anterior',
+            nuevoValor: 'Actualizado',
+          },
+        ],
+      },
       fecha: new Date(),
     });
 
@@ -740,6 +936,7 @@ export const deleteRegistration = async (req: Request, res: Response): Promise<v
       return;
     }
 
+    const estadoAnterior = registration.estado;
     registration.estado = 'Baja';
     await registration.save();
 
@@ -749,7 +946,23 @@ export const deleteRegistration = async (req: Request, res: Response): Promise<v
       tipo: 'BAJA',
       usuarioResponsable: adminId,
       descripcion: `Baja de corredor: ${registration.datosCorredor.nombre} ${registration.datosCorredor.apellido} (Dorsal #${registration.dorsal})`,
-      detalles: { registrationId: registration._id },
+      detalles: {
+        registrationId: registration._id,
+        corredor: {
+          nombre: registration.datosCorredor.nombre,
+          apellido: registration.datosCorredor.apellido,
+          dni: registration.datosCorredor.dni,
+        },
+        dorsal: registration.dorsal,
+        cambios: [
+          {
+            campo: 'Estado',
+            etiqueta: 'Estado de Inscripción',
+            valorAnterior: estadoAnterior,
+            nuevoValor: 'Baja',
+          },
+        ],
+      },
       fecha: new Date(),
     });
 

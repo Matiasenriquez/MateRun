@@ -53,7 +53,8 @@ import {
   Edit2,
   RotateCcw,
   X,
-  Loader2
+  Loader2,
+  History
 } from 'lucide-react';
 
 /**
@@ -323,14 +324,23 @@ export const RaceRoster: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto py-2">
       
-      {/* BOTÓN EXPLÍCITO DE REGRESO ("Volver") */}
-      <div>
+      {/* BOTONES DE NAVEGACIÓN SUPERIOR */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <button
           onClick={handleGoBack}
           className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4 text-machine" />
           <span>Volver al Panel de Control</span>
+        </button>
+
+        <button
+          onClick={() => navigate(`/admin/race-history/${raceId}`)}
+          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
+          title="Ver historial oficial y auditoría de la carrera"
+        >
+          <History className="w-4 h-4 text-machine" />
+          <span>Historial de la Carrera</span>
         </button>
       </div>
 

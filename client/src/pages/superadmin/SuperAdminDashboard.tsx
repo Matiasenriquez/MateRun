@@ -30,7 +30,8 @@ import {
   X,
   Tag,
   Eye,
-  EyeOff
+  EyeOff,
+  History
 } from 'lucide-react';
 
 /**
@@ -92,6 +93,14 @@ export const SuperAdminDashboard: React.FC = () => {
    */
   const handleEnterRaceRoster = (raceId: string) => {
     navigate(`/admin/race-roster/${raceId}`);
+  };
+
+  /**
+   * Manejador para el botón "Historial":
+   * Redirige al SuperAdmin a la página de historial y auditoría de la carrera.
+   */
+  const handleEnterRaceHistory = (raceId: string) => {
+    navigate(`/admin/race-history/${raceId}`);
   };
 
   // Años disponibles extraídos de las fechas de las carreras creadas
@@ -434,6 +443,17 @@ export const SuperAdminDashboard: React.FC = () => {
                         {inscriptosActivos} <span className="text-xs font-semibold text-slate-400">/ {race.cupoMaximo}</span>
                       </p>
                     </div>
+
+                    {/* BOTÓN EXPLÍCITO: HISTORIAL */}
+                    <button
+                      type="button"
+                      onClick={() => handleEnterRaceHistory(race._id)}
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl shadow-2xs transition-all cursor-pointer"
+                      title={`Ver historial y auditoría de ${race.nombre}`}
+                    >
+                      <History className="w-4 h-4 text-machine" />
+                      <span>Historial</span>
+                    </button>
 
                     {/* BOTÓN EXPLÍCITO: INGRESAR */}
                     <button

@@ -17,6 +17,8 @@
 import { Request, Response } from 'express';
 import { Registration } from '../models/Registration';
 import { AuditLog } from '../models/AuditLog';
+import { Race } from '../models/Race';
+import { User } from '../models/User';
 
 /**
  * Obtiene la información consolidada para la pantalla de Historial de una carrera.
@@ -27,6 +29,12 @@ import { AuditLog } from '../models/AuditLog';
 export const getRaceHistory = async (req: Request, res: Response): Promise<void> => {
   try {
     const { raceId } = req.params;
+
+    const race = await Race.findById(raceId);
+    if (!race) {
+      res.status(404).json({ error: 'Carrera no encontrada' });
+      return;
+    }
 
     // 1. CUADRO IZQUIERDO: Corredores Acreditados
     const accreditedRunners = await Registration.find({
@@ -46,13 +54,94 @@ export const getRaceHistory = async (req: Request, res: Response): Promise<void>
       dorsal: r.dorsal,
     }));
 
-    // 2. CUADRO DERECHO: Historial de Auditoría (nuevos inscriptos, modificados, bajas)
-    const auditLogs = await AuditLog.find({ carrera: raceId })
+    // 2. Historial de Auditoría cronológico completo para la carrera
+    const rawAuditLogs = await AuditLog.find({ carrera: raceId })
       .populate('usuarioResponsable', 'nombre apellido email rol')
       .sort({ fecha: -1 })
-      .limit(100); // Límite de las últimas 100 acciones
+      .limit(500);
+
+    const auditLogs = rawAuditLogs.map((log) => {
+      const obj = log.toObject();
+      let corredor = obj.detalles?.corredor;
+      let dorsal = obj.detalles?.dorsal;
+      let cambios = obj.detalles?.cambios;
+
+      // Fallback inteligente para registros de auditoría anteriores
+      if (!corredor && obj.descripcion) {
+        let nombre = '';
+        let dni = '';
+        if (obj.descripcion.includes(' para ')) {
+          const part = obj.descripcion.split(' para ')[1]?.split(' (Dorsal #')[0];
+          nombre = part || '';
+        } else if (obj.descripcion.includes('corredor: ')) {
+          const part = obj.descripcion.split('corredor: ')[1]?.split(' (DNI')[0];
+          nombre = part || '';
+          if (obj.descripcion.includes('(DNI ')) {
+            dni = obj.descripcion.split('(DNI ')[1]?.split(')')[0] || '';
+          }
+        }
+        if (obj.descripcion.includes('(Dorsal #')) {
+          dorsal = obj.descripcion.split('(Dorsal #')[1]?.split(')')[0] || dorsal;
+        }
+        corredor = { nombre: nombre.trim(), apellido: '', dni: dni.trim() };
+      }
+
+      if (!cambios || !Array.isArray(cambios) || cambios.length === 0) {
+        if (obj.tipo === 'CAMBIO_ESTADO' && obj.detalles?.estadoAnterior && obj.detalles?.nuevoEstado) {
+          cambios = [
+            {
+              campo: 'Estado',
+              etiqueta: 'Estado de Acreditación',
+              valorAnterior: obj.detalles.estadoAnterior,
+              nuevoValor: obj.detalles.nuevoEstado,
+            },
+          ];
+        } else if (obj.tipo === 'NUEVA_INSCRIPCION') {
+          cambios = [
+            {
+              campo: 'Alta',
+              etiqueta: 'Inscripción en Carrera',
+              valorAnterior: '-',
+              nuevoValor: 'Alta registrada',
+            },
+            {
+              campo: 'Dorsal',
+              etiqueta: 'Dorsal Asignado',
+              valorAnterior: '-',
+              nuevoValor: dorsal || '-',
+            },
+            {
+              campo: 'Estado',
+              etiqueta: 'Estado Inicial',
+              valorAnterior: '-',
+              nuevoValor: 'Pendiente',
+            },
+          ];
+        } else {
+          cambios = [
+            {
+              campo: 'Modificación',
+              etiqueta: 'Datos de Inscripción',
+              valorAnterior: 'Valor previo',
+              nuevoValor: 'Actualizado',
+            },
+          ];
+        }
+      }
+
+      return {
+        ...obj,
+        detalles: {
+          ...obj.detalles,
+          corredor,
+          dorsal,
+          cambios,
+        },
+      };
+    });
 
     res.status(200).json({
+      race,
       accreditedRunners: formattedAccredited,
       auditLogs,
     });
