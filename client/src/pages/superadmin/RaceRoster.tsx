@@ -313,6 +313,13 @@ export const RaceRoster: React.FC = () => {
     );
   });
 
+  /**
+   * Contadores en tiempo real por cada estado oficial de los corredores inscriptos
+   */
+  const countAcreditados = activeRegistrations.filter((r) => r.estado === 'Acreditado').length;
+  const countPendientes = activeRegistrations.filter((r) => !r.estado || r.estado === 'Pendiente').length;
+  const countRetiraNoCorre = activeRegistrations.filter((r) => r.estado === 'Retira y no corre').length;
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto py-2">
       
@@ -388,6 +395,54 @@ export const RaceRoster: React.FC = () => {
           {errorMsg}
         </div>
       )}
+
+      {/* CONTADORES POR ESTADO DE CORREDORES */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Acreditados */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-all">
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Acreditados
+            </p>
+            <p className="text-2xl font-black text-slate-800 mt-0.5">
+              {isRegsLoading ? '-' : countAcreditados}
+            </p>
+          </div>
+        </div>
+
+        {/* Pendientes */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-all">
+          <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0">
+            <Clock className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Pendientes
+            </p>
+            <p className="text-2xl font-black text-slate-800 mt-0.5">
+              {isRegsLoading ? '-' : countPendientes}
+            </p>
+          </div>
+        </div>
+
+        {/* Retira y no corre */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-all">
+          <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
+            <Package className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Retira y no corre
+            </p>
+            <p className="text-2xl font-black text-slate-800 mt-0.5">
+              {isRegsLoading ? '-' : countRetiraNoCorre}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* CONTENEDOR DE LA TABLA DE INSCRIPTOS */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
