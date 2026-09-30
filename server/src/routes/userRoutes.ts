@@ -11,6 +11,7 @@ import { Router } from 'express';
 import {
   getAllUsers,
   getUserById,
+  createUser,
   updateUser,
   changeUserRole,
   deleteUser,
@@ -20,6 +21,9 @@ import { verifyToken, requireRole } from '../middleware/auth';
 const router = Router();
 
 router.use(verifyToken);
+
+// Creación de usuario exclusivo para SuperAdmin (por defecto 'corredor')
+router.post('/', requireRole('superadmin'), createUser);
 
 // CRUD de usuarios disponible para administradores
 router.get('/', requireRole('admin', 'superadmin'), getAllUsers);

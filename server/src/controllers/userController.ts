@@ -54,6 +54,131 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 };
 
 /**
+ * Crea un nuevo usuario en la plataforma (por defecto con rol 'corredor').
+ * Exclusivo para SuperAdmin desde el panel de "Usuarios y Roles".
+ * 
+ * Ruta: POST /api/users
+ * Acceso: SuperAdmin
+ */
+export const createUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const {
+      nombre,
+      apellido,
+      dni,
+      email,
+      password,
+      telefono,
+      fechaNacimiento,
+      sexo,
+      ciudad,
+      provincia,
+      contactoEmergencia,
+      rol,
+    } = req.body;
+
+    // 1. Validar campos obligatorios que posee el perfil del corredor
+    if (
+      !nombre ||
+      !apellido ||
+      !dni ||
+      !email ||
+      !fechaNacimiento ||
+      !sexo ||
+      !telefono ||
+      !ciudad ||
+      !provincia
+    ) {
+      res.status(400).json({
+        error: 'Datos incompletos',
+        message: 'Por favor complete todos los campos obligatorios del usuario',
+      });
+      return;
+    }
+
+    const cleanDni = dni.toString().trim();
+    const cleanEmail = email.toString().toLowerCase().trim();
+
+    // 2. Comprobar si ya existe un usuario con el mismo DNI
+    const existingDni = await User.findOne({ dni: cleanDni });
+    if (existingDni) {
+      res.status(400).json({
+        error: 'DNI ya registrado',
+        message: 'El número de DNI ingresado ya se encuentra registrado por otro usuario.',
+      });
+      return;
+    }
+
+    // 3. Comprobar si ya existe un usuario con el mismo correo electrónico
+    const existingEmail = await User.findOne({ email: cleanEmail });
+    if (existingEmail) {
+      res.status(400).json({
+        error: 'Correo ya registrado',
+        message: 'El correo electrónico ingresado ya se encuentra en uso por otra cuenta.',
+      });
+      return;
+    }
+
+    // Normalizar Sexo: 'Mujer' / 'Femenino' -> 'Femenino', caso contrario 'Masculino'
+    const normalizedSexo = (sexo === 'Mujer' || sexo === 'Femenino') ? 'Femenino' : 'Masculino';
+
+    // Normalizar Contacto de Emergencia
+    let formattedContactoEmergencia = undefined;
+    if (contactoEmergencia) {
+      if (typeof contactoEmergencia === 'object') {
+        formattedContactoEmergencia = {
+          nombre: contactoEmergencia.nombre ? contactoEmergencia.nombre.trim() : 'Contacto de Emergencia',
+          telefono: contactoEmergencia.telefono ? String(contactoEmergencia.telefono).trim() : '',
+        };
+      } else if (typeof contactoEmergencia === 'string' && contactoEmergencia.trim() !== '') {
+        formattedContactoEmergencia = {
+          nombre: 'Contacto de Emergencia',
+          telefono: contactoEmergencia.trim(),
+        };
+      }
+    }
+
+    // Contraseña inicial: si no se especifica o es menor a 6 caracteres, asignar por defecto Mate{dni}!
+    const finalPassword = password && password.trim().length >= 6
+      ? password.trim()
+      : `Mate${cleanDni}!`;
+
+    // Rol: por defecto 'corredor', o el especificado si es válido
+    const userRole = (rol === 'admin' || rol === 'superadmin') ? rol : 'corredor';
+
+    // 4. Crear y guardar el nuevo usuario
+    const newUser = new User({
+      nombre: nombre.trim(),
+      apellido: apellido.trim(),
+      dni: cleanDni,
+      email: cleanEmail,
+      password: finalPassword,
+      telefono: telefono.toString().trim(),
+      fechaNacimiento: new Date(fechaNacimiento),
+      sexo: normalizedSexo,
+      ciudad: ciudad.trim(),
+      provincia: provincia.trim(),
+      contactoEmergencia: formattedContactoEmergencia,
+      rol: userRole,
+    });
+
+    await newUser.save();
+
+    const userSafe = newUser.toObject();
+    delete userSafe.password;
+
+    res.status(201).json({
+      message: 'Usuario creado exitosamente con el rol Corredor',
+      user: userSafe,
+      initialPassword: finalPassword,
+    });
+  } catch (error: any) {
+    console.error('Error al crear usuario:', error);
+    res.status(500).json({ error: 'Error de servidor', message: error.message });
+  }
+};
+
+/**
  * Obtiene el detalle de un usuario por su ID.
  * 
  * Ruta: GET /api/users/:id
@@ -96,6 +221,8 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       ciudad,
       provincia,
       contactoEmergencia,
+      rol,
+      fotoPerfil,
     } = req.body;
 
     const user = await User.findById(id);
@@ -104,16 +231,77 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    // 1. Validar DNI si fue modificado (debe ser único)
+    if (dni && dni.toString().trim() !== user.dni) {
+      const cleanDni = dni.toString().trim();
+      const existingDni = await User.findOne({ dni: cleanDni, _id: { $ne: user._id } });
+      if (existingDni) {
+        res.status(400).json({
+          error: 'DNI ya registrado',
+          message: 'El número de DNI ingresado ya se encuentra registrado por otro usuario.',
+        });
+        return;
+      }
+      user.dni = cleanDni;
+    }
+
+    // 2. Validar Correo Electrónico si fue modificado (debe ser único)
+    if (email && email.toString().toLowerCase().trim() !== user.email) {
+      const cleanEmail = email.toString().toLowerCase().trim();
+      const existingEmail = await User.findOne({ email: cleanEmail, _id: { $ne: user._id } });
+      if (existingEmail) {
+        res.status(400).json({
+          error: 'Correo ya registrado',
+          message: 'El correo electrónico ingresado ya se encuentra en uso por otra cuenta.',
+        });
+        return;
+      }
+      user.email = cleanEmail;
+    }
+
+    // 3. Actualizar campos personales
     if (nombre) user.nombre = nombre.trim();
     if (apellido) user.apellido = apellido.trim();
-    if (dni) user.dni = dni.trim();
-    if (email) user.email = email.toLowerCase().trim();
-    if (telefono !== undefined) user.telefono = telefono.trim();
+    if (telefono !== undefined) user.telefono = telefono ? telefono.toString().trim() : '';
     if (fechaNacimiento) user.fechaNacimiento = new Date(fechaNacimiento);
-    if (sexo) user.sexo = sexo;
-    if (ciudad !== undefined) user.ciudad = ciudad.trim();
-    if (provincia !== undefined) user.provincia = provincia.trim();
-    if (contactoEmergencia) user.contactoEmergencia = contactoEmergencia;
+    if (sexo) {
+      user.sexo = (sexo === 'Mujer' || sexo === 'Femenino') ? 'Femenino' : 'Masculino';
+    }
+    if (ciudad !== undefined) user.ciudad = ciudad ? ciudad.trim() : '';
+    if (provincia !== undefined) user.provincia = provincia ? provincia.trim() : '';
+
+    if (contactoEmergencia) {
+      if (typeof contactoEmergencia === 'object') {
+        user.contactoEmergencia = {
+          nombre: contactoEmergencia.nombre ? contactoEmergencia.nombre.trim() : 'Contacto de Emergencia',
+          telefono: contactoEmergencia.telefono ? String(contactoEmergencia.telefono).trim() : '',
+        };
+      } else if (typeof contactoEmergencia === 'string' && contactoEmergencia.trim() !== '') {
+        user.contactoEmergencia = {
+          nombre: user.contactoEmergencia?.nombre || 'Contacto de Emergencia',
+          telefono: contactoEmergencia.trim(),
+        };
+      }
+    }
+
+    // Rol (validar que no se auto-degrade si es el mismo SuperAdmin conectado)
+    if (rol && ['corredor', 'admin', 'superadmin'].includes(rol)) {
+      if (req.user?.id === id && rol !== 'superadmin') {
+        res.status(400).json({
+          error: 'Acción no permitida',
+          message: 'No puedes degradar tu propio rol de SuperAdmin',
+        });
+        return;
+      }
+      user.rol = rol;
+    }
+
+    // Foto de perfil
+    if (fotoPerfil !== undefined) {
+      user.fotoPerfil = fotoPerfil && typeof fotoPerfil === 'string' && fotoPerfil.trim() !== ''
+        ? fotoPerfil.trim()
+        : null;
+    }
 
     await user.save();
 
