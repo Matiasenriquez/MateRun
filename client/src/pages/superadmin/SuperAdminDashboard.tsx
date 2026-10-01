@@ -31,7 +31,8 @@ import {
   Tag,
   Eye,
   EyeOff,
-  History
+  History,
+  Trophy
 } from 'lucide-react';
 
 /**
@@ -101,6 +102,14 @@ export const SuperAdminDashboard: React.FC = () => {
    */
   const handleEnterRaceHistory = (raceId: string) => {
     navigate(`/admin/race-history/${raceId}`);
+  };
+
+  /**
+   * Manejador para el botón "Resultados":
+   * Redirige al SuperAdmin a la página de carga y gestión de resultados oficiales.
+   */
+  const handleEnterRaceResults = (raceId: string) => {
+    navigate(`/admin/race-results/${raceId}`);
   };
 
   // Años disponibles extraídos de las fechas de las carreras creadas
@@ -448,11 +457,22 @@ export const SuperAdminDashboard: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleEnterRaceHistory(race._id)}
-                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl shadow-2xs transition-all cursor-pointer"
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl shadow-2xs transition-all cursor-pointer"
                       title={`Ver historial y auditoría de ${race.nombre}`}
                     >
                       <History className="w-4 h-4 text-machine" />
                       <span>Historial</span>
+                    </button>
+
+                    {/* BOTÓN EXPLÍCITO: RESULTADOS */}
+                    <button
+                      type="button"
+                      onClick={() => handleEnterRaceResults(race._id)}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl shadow-2xs transition-all cursor-pointer"
+                      title={`Gestionar resultados oficiales de ${race.nombre}`}
+                    >
+                      <Trophy className="w-4 h-4 text-amber-600" />
+                      <span>Resultados</span>
                     </button>
 
                     {/* BOTÓN EXPLÍCITO: INGRESAR */}

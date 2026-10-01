@@ -23,6 +23,7 @@ import { RaceManagement } from './pages/superadmin/RaceManagement';
 import { UserManagement } from './pages/superadmin/UserManagement';
 import { RaceRoster } from './pages/superadmin/RaceRoster';
 import { RaceHistory } from './pages/superadmin/RaceHistory';
+import { RaceResultsManagement } from './pages/superadmin/RaceResultsManagement';
 
 export const App: React.FC = () => {
   return (
@@ -75,6 +76,10 @@ export const App: React.FC = () => {
             <Route 
               path="/admin/race-history/:raceId" 
               element={<ProtectedRoute allowedRoles={['superadmin']}><RaceHistory /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/admin/race-results/:raceId" 
+              element={<ProtectedRoute allowedRoles={['superadmin']}><RaceResultsManagement /></ProtectedRoute>} 
             />
           </Route>
           

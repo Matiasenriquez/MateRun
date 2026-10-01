@@ -37,7 +37,8 @@ import {
   Filter,
   Eye,
   EyeOff,
-  History
+  History,
+  Trophy
 } from 'lucide-react';
 
 // Mapeo de meses en español (0 = Enero, 11 = Diciembre)
@@ -105,6 +106,7 @@ export const RaceManagement: React.FC = () => {
   const [cupoMaximo, setCupoMaximo] = useState<string>('500');
   const [adminAsignado, setAdminAsignado] = useState<string>('');
   const [visibilidad, setVisibilidad] = useState<'Visible' | 'Oculta'>('Visible');
+  const [estado, setEstado] = useState<'activa' | 'finalizada' | 'cancelada'>('activa');
   const [categorias, setCategorias] = useState<RaceCategory[]>([]);
 
   // --------------------------------------------------------------------------
@@ -167,6 +169,7 @@ export const RaceManagement: React.FC = () => {
     setCupoMaximo('500');
     setAdminAsignado('');
     setVisibilidad('Visible');
+    setEstado('activa');
     setCategorias([
       { nombre: 'Juveniles (14 a 19 años)', edadMinima: 14, edadMaxima: 19 },
       { nombre: 'Mayores A (20 a 29 años)', edadMinima: 20, edadMaxima: 29 },
@@ -209,6 +212,9 @@ export const RaceManagement: React.FC = () => {
 
     // Visibilidad (Visible / Oculta)
     setVisibilidad(race.visibilidad || 'Visible');
+
+    // Estado (activa / finalizada / cancelada)
+    setEstado(race.estado || 'activa');
 
     // Categorías etarias
     setCategorias(race.categorias && race.categorias.length > 0 ? [...race.categorias] : []);
@@ -312,6 +318,7 @@ export const RaceManagement: React.FC = () => {
         distancias: distArray,
         cupoMaximo: Number(cupoMaximo) || 500,
         visibilidad,
+        estado,
         adminAsignado: adminAsignado ? adminAsignado : null,
         categorias: validCategories,
       };
@@ -758,6 +765,17 @@ export const RaceManagement: React.FC = () => {
                             <span>Historial</span>
                           </button>
 
+                          {/* Botón Resultados */}
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/race-results/${r._id}`)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+                            title="Gestionar resultados oficiales de la carrera"
+                          >
+                            <Trophy className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Resultados</span>
+                          </button>
+
                           {/* Botón Editar */}
                           <button
                             type="button"
@@ -958,6 +976,29 @@ export const RaceManagement: React.FC = () => {
                     {visibilidad === 'Visible' 
                       ? 'La carrera estará disponible según los permisos de cada usuario.' 
                       : 'Oculta: no aparecerá en las interfaces de Administradores ni Corredores.'}
+                  </p>
+                </div>
+
+                {/* Estado de la Carrera (Activa / Finalizada / Cancelada) */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">
+                    Estado de la Carrera *
+                  </label>
+                  <select
+                    value={estado}
+                    onChange={(e) => setEstado(e.target.value as 'activa' | 'finalizada' | 'cancelada')}
+                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine cursor-pointer"
+                  >
+                    <option value="activa">Activa (Inscripciones habilitadas)</option>
+                    <option value="finalizada">Finalizada (Resultados oficiales disponibles en Mis Datos)</option>
+                    <option value="cancelada">Cancelada</option>
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {estado === 'finalizada' 
+                      ? 'Una vez finalizada, ya no estará disponible para corredores y se publican sus resultados en Mis Datos.' 
+                      : estado === 'activa' 
+                      ? 'Disponible para gestión e inscripciones de corredores.' 
+                      : 'Evento cancelado.'}
                   </p>
                 </div>
 

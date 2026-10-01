@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/api';
 import { 
   FileText, 
@@ -20,10 +21,12 @@ import {
   X, 
   Calendar, 
   User, 
-  Phone 
+  Phone,
+  Trophy
 } from 'lucide-react';
 
 export const MyRegistrations: React.FC = () => {
+  const navigate = useNavigate();
   // Lista de inscripciones del corredor
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -160,6 +163,18 @@ export const MyRegistrations: React.FC = () => {
                     <Eye className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
                     <span>Ver inscripción</span>
                   </button>
+
+                  {/* ENLACE DIRECTO A MIS DATOS SI LA CARRERA YA FINALIZÓ */}
+                  {carreraObj.estado === 'finalizada' && (
+                    <button
+                      onClick={() => navigate('/my-stats')}
+                      className="mt-2 w-full py-2 px-3 text-xs font-bold uppercase tracking-wider bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg flex items-center justify-center gap-1.5 transition-colors border border-amber-200 cursor-pointer"
+                      title="Consultar resultados oficiales en Mis Datos"
+                    >
+                      <Trophy className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Ver Resultados en Mis Datos</span>
+                    </button>
+                  )}
 
                 </div>
               </div>

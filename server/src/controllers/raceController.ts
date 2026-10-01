@@ -46,6 +46,9 @@ export const getAllRaces = async (req: Request, res: Response): Promise<void> =>
     // Filtro por estado ('activa', 'finalizada', etc.) si se proporciona
     if (estado && typeof estado === 'string') {
       filter.estado = estado;
+    } else if (userRole === 'corredor') {
+      // Regla de negocio: Una vez que la carrera fue finalizada, ya no estará disponible para los corredores
+      filter.estado = { $ne: 'finalizada' };
     }
 
     // Filtro de búsqueda insensible a mayúsculas/minúsculas sobre nombre, lugar u organizador

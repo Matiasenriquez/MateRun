@@ -54,7 +54,8 @@ import {
   RotateCcw,
   X,
   Loader2,
-  History
+  History,
+  Trophy
 } from 'lucide-react';
 
 /**
@@ -334,14 +335,25 @@ export const RaceRoster: React.FC = () => {
           <span>Volver al Panel de Control</span>
         </button>
 
-        <button
-          onClick={() => navigate(`/admin/race-history/${raceId}`)}
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
-          title="Ver historial oficial y auditoría de la carrera"
-        >
-          <History className="w-4 h-4 text-machine" />
-          <span>Historial de la Carrera</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => navigate(`/admin/race-history/${raceId}`)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
+            title="Ver historial oficial y auditoría de la carrera"
+          >
+            <History className="w-4 h-4 text-machine" />
+            <span>Historial</span>
+          </button>
+
+          <button
+            onClick={() => navigate(`/admin/race-results/${raceId}`)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
+            title="Gestionar resultados oficiales de la carrera"
+          >
+            <Trophy className="w-4 h-4 text-amber-600" />
+            <span>Cargar Resultados</span>
+          </button>
+        </div>
       </div>
 
       {/* ENCABEZADO DE LA CARRERA CON SUS MÉTRICAS */}
