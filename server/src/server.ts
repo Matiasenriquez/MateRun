@@ -31,6 +31,7 @@ import historyRoutes from './routes/historyRoutes';
 import statsRoutes from './routes/statsRoutes';
 import userRoutes from './routes/userRoutes';
 import resultsRoutes from './routes/resultsRoutes';
+import reportsRoutes from './routes/reportsRoutes';
 
 // ------------------------------------------------------------------------------
 // 1. CARGA DE VARIABLES DE ENTORNO
@@ -97,6 +98,7 @@ app.use('/api/history', historyRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/results', resultsRoutes);
+app.use('/api/reports', reportsRoutes);
 
 // ------------------------------------------------------------------------------
 // 4. RUTAS BASE Y DE SALUD (HEALTH CHECK)

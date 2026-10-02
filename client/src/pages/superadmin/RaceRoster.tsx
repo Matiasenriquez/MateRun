@@ -353,6 +353,15 @@ export const RaceRoster: React.FC = () => {
             <Trophy className="w-4 h-4 text-amber-600" />
             <span>Cargar Resultados</span>
           </button>
+
+          <button
+            onClick={() => navigate(`/admin/race-reports/${raceId}`)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
+            title="Ver informes de inscriptos por distancia, categoría y sexo"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Informes</span>
+          </button>
         </div>
       </div>
 

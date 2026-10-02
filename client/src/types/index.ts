@@ -158,3 +158,35 @@ export interface RunnerStats {
   carreraMejorTiempo: string | null;
   totalCarreras: number;
 }
+
+/**
+ * Grupo de inscriptos para la tabla de Informes
+ */
+export interface ReportGroup {
+  id: string;
+  distancia: number;
+  distanciaLabel: string;
+  categoria: string;
+  sexo: 'Hombres' | 'Mujeres';
+  cantidad: number;
+  inscriptos: any[];
+}
+
+/**
+ * Respuesta consolidada del endpoint de Informes de una carrera
+ */
+export interface RaceReportsData {
+  race: Race;
+  totals: {
+    totalInscriptos: number;
+    totalHombres: number;
+    totalMujeres: number;
+    porDistancia: Record<number, number>;
+    porEstado: {
+      acreditados: number;
+      pendientes: number;
+      retiraNoCorre: number;
+    };
+  };
+  groups: ReportGroup[];
+}

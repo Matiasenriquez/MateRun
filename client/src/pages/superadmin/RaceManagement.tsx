@@ -38,7 +38,8 @@ import {
   Eye,
   EyeOff,
   History,
-  Trophy
+  Trophy,
+  FileSpreadsheet
 } from 'lucide-react';
 
 // Mapeo de meses en español (0 = Enero, 11 = Diciembre)
@@ -774,6 +775,17 @@ export const RaceManagement: React.FC = () => {
                           >
                             <Trophy className="w-3.5 h-3.5 text-amber-600" />
                             <span>Resultados</span>
+                          </button>
+
+                          {/* Botón Informes */}
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/race-reports/${r._id}`)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+                            title="Ver informes y estadísticas de la carrera"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Informes</span>
                           </button>
 
                           {/* Botón Editar */}

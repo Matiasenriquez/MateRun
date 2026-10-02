@@ -41,7 +41,9 @@ import {
   AlertCircle,
   ShieldAlert,
   SlidersHorizontal,
-  Filter
+  Filter,
+  Trophy,
+  FileSpreadsheet
 } from 'lucide-react';
 
 interface AuditChange {
@@ -316,7 +318,7 @@ export const RaceHistory: React.FC = () => {
       {/* BARRA SUPERIOR DE NAVEGACIÓN Y ACCIONES                                  */}
       {/* ========================================================================= */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => navigate(`/admin/race-roster/${raceId}`)}
@@ -325,6 +327,26 @@ export const RaceHistory: React.FC = () => {
           >
             <ArrowLeft className="w-4 h-4 text-machine" />
             <span>Nómina de Inscriptos</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate(`/admin/race-results/${raceId}`)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
+            title="Gestionar resultados oficiales de la carrera"
+          >
+            <Trophy className="w-4 h-4 text-amber-600" />
+            <span>Cargar Resultados</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate(`/admin/race-reports/${raceId}`)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
+            title="Ver informes de inscriptos por distancia, categoría y sexo"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Informes</span>
           </button>
 
           <button

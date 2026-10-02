@@ -34,7 +34,8 @@ import {
   Flag,
   RotateCcw,
   History,
-  Timer
+  Timer,
+  FileSpreadsheet
 } from 'lucide-react';
 
 interface RegistrationItem {
@@ -548,6 +549,16 @@ export const RaceResultsManagement: React.FC = () => {
           >
             <History className="w-4 h-4 text-machine" />
             <span>Historial</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate(`/admin/race-reports/${raceId}`)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
+            title="Ver informes de inscriptos por distancia, categoría y sexo"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Informes</span>
           </button>
 
           <button

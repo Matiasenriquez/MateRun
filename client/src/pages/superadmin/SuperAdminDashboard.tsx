@@ -32,7 +32,8 @@ import {
   Eye,
   EyeOff,
   History,
-  Trophy
+  Trophy,
+  FileSpreadsheet
 } from 'lucide-react';
 
 /**
@@ -110,6 +111,14 @@ export const SuperAdminDashboard: React.FC = () => {
    */
   const handleEnterRaceResults = (raceId: string) => {
     navigate(`/admin/race-results/${raceId}`);
+  };
+
+  /**
+   * Manejador para el botón "Informes":
+   * Redirige al SuperAdmin a la página de informes y consultas de inscriptos.
+   */
+  const handleEnterRaceReports = (raceId: string) => {
+    navigate(`/admin/race-reports/${raceId}`);
   };
 
   // Años disponibles extraídos de las fechas de las carreras creadas
@@ -473,6 +482,17 @@ export const SuperAdminDashboard: React.FC = () => {
                     >
                       <Trophy className="w-4 h-4 text-amber-600" />
                       <span>Resultados</span>
+                    </button>
+
+                    {/* BOTÓN EXPLÍCITO: INFORMES */}
+                    <button
+                      type="button"
+                      onClick={() => handleEnterRaceReports(race._id)}
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl shadow-2xs transition-all cursor-pointer"
+                      title={`Ver informes y estadísticas de ${race.nombre}`}
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                      <span>Informes</span>
                     </button>
 
                     {/* BOTÓN EXPLÍCITO: INGRESAR */}
