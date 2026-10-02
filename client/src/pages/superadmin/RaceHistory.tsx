@@ -307,6 +307,20 @@ export const RaceHistory: React.FC = () => {
         </span>
       );
     }
+    if (str === 'Descalificado') {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+          🚫 Descalificado
+        </span>
+      );
+    }
+    if (str === 'Clasificado') {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+          Clasificado
+        </span>
+      );
+    }
 
     return <span className="font-semibold text-slate-800">{str}</span>;
   };

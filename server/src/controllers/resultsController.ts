@@ -170,12 +170,30 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
       : [];
 
     // 4. Normalizar Tiempos de Corredores de la nómina
+    const prevSummary = await RaceResultsSummary.findOne({
+      carrera: raceId,
+      distancia: targetDistancia,
+    });
+    const prevMap = new Map(
+      (prevSummary?.tiemposCorredores || []).map((t: any) => [
+        String(t.corredor || t.registrationId),
+        t,
+      ])
+    );
+
     const normalizedTiempos = Array.isArray(tiemposCorredores)
       ? tiemposCorredores.map((entry: any) => {
-          const segs = entry.tiempoSegundos !== undefined && entry.tiempoSegundos !== null
+          const isDescalificado = Boolean(entry.descalificado);
+          const segs = isDescalificado
+            ? null
+            : entry.tiempoSegundos !== undefined && entry.tiempoSegundos !== null
             ? Number(entry.tiempoSegundos)
             : parseTimeToSeconds(entry.tiempo || '');
-          const formatted = segs > 0 ? formatSecondsToTime(segs) : entry.tiempo || '';
+          const formatted = isDescalificado
+            ? 'Descalificado'
+            : segs && segs > 0
+            ? formatSecondsToTime(segs)
+            : entry.tiempo || '';
           return {
             corredor: entry.corredor,
             registrationId: entry.registrationId,
@@ -185,8 +203,17 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
             distancia: targetDistancia,
             tiempo: formatted,
             tiempoSegundos: segs,
-            posicionGeneral: entry.posicionGeneral !== undefined ? entry.posicionGeneral : null,
-            posicionCategoria: entry.posicionCategoria !== undefined ? entry.posicionCategoria : null,
+            posicionGeneral: isDescalificado
+              ? null
+              : entry.posicionGeneral !== undefined
+              ? entry.posicionGeneral
+              : null,
+            posicionCategoria: isDescalificado
+              ? null
+              : entry.posicionCategoria !== undefined
+              ? entry.posicionCategoria
+              : null,
+            descalificado: isDescalificado,
           };
         })
       : [];
@@ -207,13 +234,17 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
 
     // 6. Sincronizar con `RaceResult` para que cada corredor visualice su resultado en "Mis Datos"
     // Mapa consolidado de corredores afectados
-    const runnerResultsMap = new Map<string, {
-      corredorId: string;
-      tiempoSegundos: number | null;
-      posicionGeneral: number | null;
-      posicionCategoria: number | null;
-      categoria?: string | null;
-    }>();
+    const runnerResultsMap = new Map<
+      string,
+      {
+        corredorId: string;
+        tiempoSegundos: number | null;
+        posicionGeneral: number | null;
+        posicionCategoria: number | null;
+        categoria?: string | null;
+        descalificado?: boolean;
+      }
+    >();
 
     // Integrar podio general
     for (const g of normalizedGeneral) {
@@ -224,6 +255,7 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         tiempoSegundos: g.tiempoSegundos && g.tiempoSegundos > 0 ? g.tiempoSegundos : null,
         posicionGeneral: g.posicion,
         posicionCategoria: null,
+        descalificado: false,
       });
     }
 
@@ -236,11 +268,13 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         tiempoSegundos: null,
         posicionGeneral: null,
         posicionCategoria: null,
+        descalificado: false,
       };
 
       runnerResultsMap.set(cId, {
         ...prev,
-        tiempoSegundos: (cat.tiempoSegundos && cat.tiempoSegundos > 0) ? cat.tiempoSegundos : prev.tiempoSegundos,
+        tiempoSegundos:
+          cat.tiempoSegundos && cat.tiempoSegundos > 0 ? cat.tiempoSegundos : prev.tiempoSegundos,
         posicionCategoria: 1, // Es ganador de su categoría
         categoria: cat.categoria,
       });
@@ -252,15 +286,23 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
       const cId = String(t.corredor);
       const prev = runnerResultsMap.get(cId);
 
-      const finalTiempoSegundos = (t.tiempoSegundos && t.tiempoSegundos > 0)
-        ? t.tiempoSegundos
-        : (prev?.tiempoSegundos ?? null);
+      const isDescalificado = Boolean(t.descalificado);
 
-      const finalPosGeneral = prev?.posicionGeneral !== null && prev?.posicionGeneral !== undefined
+      const finalTiempoSegundos = isDescalificado
+        ? null
+        : t.tiempoSegundos && t.tiempoSegundos > 0
+        ? t.tiempoSegundos
+        : prev?.tiempoSegundos ?? null;
+
+      const finalPosGeneral = isDescalificado
+        ? null
+        : prev?.posicionGeneral !== null && prev?.posicionGeneral !== undefined
         ? prev.posicionGeneral
         : t.posicionGeneral;
 
-      const finalPosCategoria = prev?.posicionCategoria !== null && prev?.posicionCategoria !== undefined
+      const finalPosCategoria = isDescalificado
+        ? null
+        : prev?.posicionCategoria !== null && prev?.posicionCategoria !== undefined
         ? prev.posicionCategoria
         : t.posicionCategoria;
 
@@ -270,6 +312,7 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         posicionGeneral: finalPosGeneral ?? null,
         posicionCategoria: finalPosCategoria ?? null,
         categoria: t.categoria || prev?.categoria || null,
+        descalificado: isDescalificado,
       });
     }
 
@@ -290,6 +333,7 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
             posicionGeneral: null,
             posicionCategoria: null,
             categoria: reg.categoria || null,
+            descalificado: false,
           });
         }
       }
@@ -313,12 +357,83 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
           posicionGeneral: resData.posicionGeneral,
           posicionCategoria: resData.posicionCategoria,
           categoria: resData.categoria,
+          descalificado: Boolean(resData.descalificado),
         },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
     }
 
-    // 7. Registrar auditoría de la carga de resultados
+    // 7. Registrar auditoría individual de corredores modificados (descalificaciones y tiempos)
+    for (const t of normalizedTiempos) {
+      const cKey = String(t.corredor || t.registrationId);
+      const prevEntry = prevMap.get(cKey);
+      const wasDescalificado = Boolean(prevEntry?.descalificado);
+      const isDescalificado = Boolean(t.descalificado);
+
+      // Si cambió el estado de descalificación
+      if (wasDescalificado !== isDescalificado) {
+        await AuditLog.create({
+          carrera: race._id,
+          tipo: 'MODIFICACION',
+          usuarioResponsable: adminId,
+          descripcion: `Corredor ${t.nombre || 'inscripto'} (Dorsal #${t.dorsal}) registrado como ${
+            isDescalificado ? 'Descalificado' : 'Clasificado'
+          } en ${targetDistancia}k`,
+          detalles: {
+            registrationId: t.registrationId,
+            corredor: {
+              nombre: t.nombre,
+            },
+            dorsal: t.dorsal,
+            distancia: targetDistancia,
+            cambios: [
+              {
+                campo: 'Estado de Resultado',
+                etiqueta: 'Estado de Resultado',
+                valorAnterior: wasDescalificado ? 'Descalificado' : 'Clasificado',
+                nuevoValor: isDescalificado ? 'Descalificado' : 'Clasificado',
+              },
+            ],
+          },
+          fecha: new Date(),
+        });
+      } else if (
+        prevEntry &&
+        prevEntry.tiempo !== t.tiempo &&
+        !isDescalificado &&
+        !wasDescalificado &&
+        (prevEntry.tiempo || t.tiempo)
+      ) {
+        // Si se modificó su tiempo oficial
+        await AuditLog.create({
+          carrera: race._id,
+          tipo: 'MODIFICACION',
+          usuarioResponsable: adminId,
+          descripcion: `Modificación de tiempo oficial de corredor: ${
+            t.nombre || 'inscripto'
+          } (Dorsal #${t.dorsal}) en ${targetDistancia}k`,
+          detalles: {
+            registrationId: t.registrationId,
+            corredor: {
+              nombre: t.nombre,
+            },
+            dorsal: t.dorsal,
+            distancia: targetDistancia,
+            cambios: [
+              {
+                campo: 'Tiempo Oficial',
+                etiqueta: 'Tiempo Oficial',
+                valorAnterior: prevEntry.tiempo || '-',
+                nuevoValor: t.tiempo || '-',
+              },
+            ],
+          },
+          fecha: new Date(),
+        });
+      }
+    }
+
+    // 8. Registrar auditoría general de la carga de resultados
     await AuditLog.create({
       carrera: race._id,
       tipo: 'MODIFICACION',
@@ -329,6 +444,7 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         podioCargado: normalizedGeneral.length,
         ganadoresCategoriasCargados: normalizedCategorias.length,
         tiemposCargados: normalizedTiempos.filter((t: any) => t.tiempoSegundos > 0).length,
+        descalificados: normalizedTiempos.filter((t: any) => t.descalificado).length,
         estadoCarrera: race.estado,
       },
       fecha: new Date(),

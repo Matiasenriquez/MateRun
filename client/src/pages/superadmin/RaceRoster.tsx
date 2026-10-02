@@ -55,7 +55,8 @@ import {
   X,
   Loader2,
   History,
-  Trophy
+  Trophy,
+  AlertTriangle
 } from 'lucide-react';
 
 /**
@@ -67,6 +68,26 @@ interface ConfirmModalState {
   runnerName: string;
   targetState: 'Pendiente' | 'Acreditado' | 'Retira y no corre';
   message: string;
+}
+
+/**
+ * Interfaz para el formulario de edición de inscripción
+ */
+interface EditRunnerFormData {
+  dorsal: string;
+  distancia: string;
+  talleRemera: string;
+  nombre: string;
+  apellido: string;
+  dni: string;
+  fechaNacimiento: string;
+  sexo: 'Masculino' | 'Femenino';
+  email: string;
+  telefono: string;
+  ciudad: string;
+  provincia: string;
+  contactoEmergenciaNombre: string;
+  contactoEmergenciaTelefono: string;
 }
 
 export const RaceRoster: React.FC = () => {
@@ -104,6 +125,33 @@ export const RaceRoster: React.FC = () => {
   // Aviso de confirmación posterior a la modificación del estado
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // --------------------------------------------------------------------------
+  // Estados para selección de corredor y edición de inscripción
+  // --------------------------------------------------------------------------
+  // Corredor seleccionado mediante clic en la fila de la tabla
+  const [selectedRunner, setSelectedRunner] = useState<any | null>(null);
+
+  // Estados del modal de edición de inscripción
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+  const [editModalError, setEditModalError] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState<EditRunnerFormData>({
+    dorsal: '',
+    distancia: '',
+    talleRemera: 'M',
+    nombre: '',
+    apellido: '',
+    dni: '',
+    fechaNacimiento: '',
+    sexo: 'Masculino',
+    email: '',
+    telefono: '',
+    ciudad: '',
+    provincia: '',
+    contactoEmergenciaNombre: '',
+    contactoEmergenciaTelefono: '',
+  });
 
   /**
    * Limpieza de temporizadores de avisos de confirmación al desmontar
@@ -250,6 +298,11 @@ export const RaceRoster: React.FC = () => {
         )
       );
 
+      // Sincronizar corredor seleccionado si corresponde
+      setSelectedRunner((prev: any) =>
+        prev?._id === registrationId ? { ...prev, estado: targetState } : prev
+      );
+
       // Mostrar la leyenda de confirmación requerida
       setSuccessNotice(`Se registró al corredor como: ${targetState}.`);
 
@@ -279,6 +332,105 @@ export const RaceRoster: React.FC = () => {
     setConfirmModal(null);
     setActiveEditRegId(null);
     setHoveredRegId(null);
+  };
+
+  /**
+   * Abre el modal de edición de inscripción precargando los datos del corredor seleccionado
+   */
+  const handleOpenEditModal = () => {
+    if (!selectedRunner) return;
+    const d = selectedRunner.datosCorredor || {};
+
+    let formattedFn = '';
+    if (d.fechaNacimiento) {
+      try {
+        formattedFn = new Date(d.fechaNacimiento).toISOString().split('T')[0];
+      } catch {
+        formattedFn = '';
+      }
+    }
+
+    const emNombre = typeof d.contactoEmergencia === 'object'
+      ? d.contactoEmergencia?.nombre || ''
+      : '';
+    const emTel = typeof d.contactoEmergencia === 'object'
+      ? d.contactoEmergencia?.telefono || ''
+      : (typeof d.contactoEmergencia === 'string' ? d.contactoEmergencia : '');
+
+    setEditFormData({
+      dorsal: selectedRunner.dorsal !== undefined ? String(selectedRunner.dorsal) : '',
+      distancia: selectedRunner.distancia !== undefined ? String(selectedRunner.distancia) : '',
+      talleRemera: selectedRunner.talleRemera || 'M',
+      nombre: d.nombre || '',
+      apellido: d.apellido || '',
+      dni: d.dni || '',
+      fechaNacimiento: formattedFn,
+      sexo: d.sexo || 'Masculino',
+      email: d.email || '',
+      telefono: d.telefono || '',
+      ciudad: d.ciudad || '',
+      provincia: d.provincia || '',
+      contactoEmergenciaNombre: emNombre,
+      contactoEmergenciaTelefono: emTel,
+    });
+    setEditModalError(null);
+    setIsEditModalOpen(true);
+  };
+
+  /**
+   * Guarda las modificaciones de la inscripción seleccionada
+   */
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRunner) return;
+
+    setIsSavingEdit(true);
+    setEditModalError(null);
+
+    try {
+      const payload = {
+        dorsal: editFormData.dorsal ? Number(editFormData.dorsal) : undefined,
+        distancia: editFormData.distancia ? Number(editFormData.distancia) : undefined,
+        talleRemera: editFormData.talleRemera,
+        nombre: editFormData.nombre.trim(),
+        apellido: editFormData.apellido.trim(),
+        dni: editFormData.dni.trim(),
+        fechaNacimiento: editFormData.fechaNacimiento || undefined,
+        sexo: editFormData.sexo,
+        email: editFormData.email.trim(),
+        telefono: editFormData.telefono.trim(),
+        ciudad: editFormData.ciudad.trim(),
+        provincia: editFormData.provincia.trim(),
+        contactoEmergencia: {
+          nombre: editFormData.contactoEmergenciaNombre.trim(),
+          telefono: editFormData.contactoEmergenciaTelefono.trim(),
+        },
+      };
+
+      const res = await api.put(`/registrations/${selectedRunner._id}`, payload);
+      const updated = res.data.registration;
+
+      // Actualizar registros en estado local
+      setRegistrations((prev) =>
+        prev.map((r) => (r._id === updated._id ? updated : r))
+      );
+      setSelectedRunner(updated);
+      setIsEditModalOpen(false);
+
+      const runnerName = `${updated.datosCorredor?.nombre || ''} ${updated.datosCorredor?.apellido || ''}`.trim();
+      setSuccessNotice(`Inscripción de ${runnerName} modificada exitosamente.`);
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+      noticeTimerRef.current = setTimeout(() => {
+        setSuccessNotice(null);
+      }, 6000);
+    } catch (err: any) {
+      console.error('Error al modificar inscripción:', err);
+      setEditModalError(
+        err.response?.data?.message || err.response?.data?.error || 'Error al guardar los cambios de la inscripción'
+      );
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   /**
@@ -479,7 +631,7 @@ export const RaceRoster: React.FC = () => {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         
         {/* BARRA SUPERIOR DE LA TABLA CON BUSCADOR INSENSIBLE A MAYÚSCULAS Y TILDES */}
-        <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <FileSpreadsheet className="w-5 h-5 text-machine" />
@@ -492,16 +644,38 @@ export const RaceRoster: React.FC = () => {
             </p>
           </div>
 
-          {/* Buscador optimizado */}
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por nombre, apellido, DNI, dorsal o estado..."
-              className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine transition-all"
-            />
+          {/* Buscador optimizado y botón de editar inscripción */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por nombre, apellido, DNI, dorsal o estado..."
+                className="w-full pl-9 pr-4 py-2 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine transition-all"
+              />
+            </div>
+
+            {/* Botón Editar Inscripción (deshabilitado por defecto en gris, se habilita al seleccionar un corredor) */}
+            <button
+              type="button"
+              onClick={handleOpenEditModal}
+              disabled={!selectedRunner}
+              className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                selectedRunner
+                  ? 'bg-machine text-white hover:bg-machine/90 shadow-xs cursor-pointer'
+                  : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+              }`}
+              title={
+                selectedRunner
+                  ? `Editar inscripción de ${selectedRunner.datosCorredor?.nombre || ''} ${selectedRunner.datosCorredor?.apellido || ''}`
+                  : 'Haz clic en una fila del listado para seleccionar un corredor y editar su inscripción'
+              }
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              <span>Editar Inscripción</span>
+            </button>
           </div>
         </div>
 
@@ -622,11 +796,24 @@ export const RaceRoster: React.FC = () => {
                     ? d.contactoEmergencia?.telefono || '-'
                     : d.contactoEmergencia || '-';
 
+                  const isSelected = selectedRunner?._id === reg._id;
+
                   return (
-                    <tr key={reg._id} className="hover:bg-slate-50/70 transition-colors">
+                    <tr 
+                      key={reg._id} 
+                      onClick={() => setSelectedRunner((prev: any) => (prev?._id === reg._id ? null : reg))}
+                      className={`transition-colors cursor-pointer select-none ${
+                        isSelected 
+                          ? 'bg-machine-light/50 border-l-4 border-l-machine hover:bg-machine-light/70' 
+                          : 'hover:bg-slate-50/70 border-l-4 border-l-transparent'
+                      }`}
+                    >
                       
                       {/* 1. ESTADO (PRIMERA COLUMNA CON INTERACCIÓN HOVER Y MODIFICACIÓN) */}
-                      <td className="px-4 py-3 text-center relative">
+                      <td 
+                        className="px-4 py-3 text-center relative"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <div 
                           className="relative inline-block text-center py-0.5"
                           onMouseEnter={() => setHoveredRegId(reg._id)}
@@ -926,6 +1113,317 @@ export const RaceRoster: React.FC = () => {
                 )}
               </button>
             </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL DE EDICIÓN DE INSCRIPCIÓN                                           */}
+      {/* ========================================================================= */}
+      {isEditModalOpen && selectedRunner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            
+            {/* Encabezado del modal */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-machine-light text-machine flex items-center justify-center">
+                  <Edit2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-800 uppercase tracking-wide">
+                    Editar Inscripción
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Modifica los datos del corredor y los parámetros de su inscripción en esta carrera.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Cerrar ventana"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Error si ocurre */}
+            {editModalError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-semibold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{editModalError}</span>
+              </div>
+            )}
+
+            {/* Formulario con campos precargados */}
+            <form onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto py-4 space-y-5 pr-1">
+              {/* Sección 1: Datos de Carrera */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                  <Tag className="w-3.5 h-3.5 text-machine" />
+                  Datos de Carrera
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Número de Dorsal *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={editFormData.dorsal}
+                      onChange={(e) => setEditFormData({ ...editFormData, dorsal: e.target.value })}
+                      className="w-full px-3 py-2 text-xs font-mono font-bold rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                      placeholder="Ej: 101"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Distancia *
+                    </label>
+                    {race?.distancias && race.distancias.length > 0 ? (
+                      <select
+                        value={editFormData.distancia}
+                        onChange={(e) => setEditFormData({ ...editFormData, distancia: e.target.value })}
+                        className="w-full px-3 py-2 text-xs font-bold rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine bg-white"
+                      >
+                        {race.distancias.map((d) => (
+                          <option key={d} value={d}>
+                            {d} km
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="number"
+                        min="1"
+                        required
+                        value={editFormData.distancia}
+                        onChange={(e) => setEditFormData({ ...editFormData, distancia: e.target.value })}
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Talle de Remera *
+                    </label>
+                    <select
+                      value={editFormData.talleRemera}
+                      onChange={(e) => setEditFormData({ ...editFormData, talleRemera: e.target.value })}
+                      className="w-full px-3 py-2 text-xs font-bold rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine bg-white"
+                    >
+                      {['XS', 'S', 'M', 'L', 'XL', '2XL'].map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 2: Datos Personales */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                  <Users className="w-3.5 h-3.5 text-machine" />
+                  Datos Personales
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Nombre *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.nombre}
+                      onChange={(e) => setEditFormData({ ...editFormData, nombre: e.target.value })}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Apellido *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.apellido}
+                      onChange={(e) => setEditFormData({ ...editFormData, apellido: e.target.value })}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      DNI *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.dni}
+                      onChange={(e) => setEditFormData({ ...editFormData, dni: e.target.value })}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Fecha de Nacimiento *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={editFormData.fechaNacimiento}
+                      onChange={(e) => setEditFormData({ ...editFormData, fechaNacimiento: e.target.value })}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Sexo *
+                    </label>
+                    <select
+                      value={editFormData.sexo}
+                      onChange={(e) => setEditFormData({ ...editFormData, sexo: e.target.value as 'Masculino' | 'Femenino' })}
+                      className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine bg-white"
+                    >
+                      <option value="Masculino">Masculino</option>
+                      <option value="Femenino">Femenino</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Correo Electrónico *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={editFormData.email}
+                      onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 3: Contacto y Ubicación */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-machine" />
+                  Contacto y Ubicación
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Teléfono
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.telefono}
+                      onChange={(e) => setEditFormData({ ...editFormData, telefono: e.target.value })}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                      placeholder="Ej: 1123456789"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Ciudad
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.ciudad}
+                      onChange={(e) => setEditFormData({ ...editFormData, ciudad: e.target.value })}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Provincia
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.provincia}
+                      onChange={(e) => setEditFormData({ ...editFormData, provincia: e.target.value })}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Sección 4: Contacto de Emergencia */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                  <Package className="w-3.5 h-3.5 text-machine" />
+                  Contacto de Emergencia
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Nombre de Contacto
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.contactoEmergenciaNombre}
+                      onChange={(e) => setEditFormData({ ...editFormData, contactoEmergenciaNombre: e.target.value })}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                      placeholder="Ej: Juan Pérez"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                      Teléfono de Emergencia
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.contactoEmergenciaTelefono}
+                      onChange={(e) => setEditFormData({ ...editFormData, contactoEmergenciaTelefono: e.target.value })}
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine"
+                      placeholder="Ej: 1198765432"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Botones de acción */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  disabled={isSavingEdit}
+                  className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-5 py-2 text-xs font-bold uppercase tracking-wider text-white bg-machine hover:bg-machine/90 rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Guardando...</span>
+                    </>
+                  ) : (
+                    <span>Guardar Cambios</span>
+                  )}
+                </button>
+              </div>
+            </form>
 
           </div>
         </div>

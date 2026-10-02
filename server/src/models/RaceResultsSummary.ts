@@ -42,6 +42,7 @@ export interface IRunnerTimeEntry {
   tiempoSegundos?: number;
   posicionGeneral?: number | null;
   posicionCategoria?: number | null;
+  descalificado?: boolean;
 }
 
 export interface IRaceResultsSummary extends Document {
@@ -94,6 +95,7 @@ const RunnerTimeEntrySchema = new Schema<IRunnerTimeEntry>(
     tiempoSegundos: { type: Number },
     posicionGeneral: { type: Number, default: null },
     posicionCategoria: { type: Number, default: null },
+    descalificado: { type: Boolean, default: false },
   },
   { _id: false }
 );

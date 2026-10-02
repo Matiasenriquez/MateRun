@@ -35,7 +35,8 @@ import {
   RotateCcw,
   History,
   Timer,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Ban
 } from 'lucide-react';
 
 interface RegistrationItem {
@@ -104,6 +105,9 @@ export const RaceResultsManagement: React.FC = () => {
 
   // Tiempos individuales de corredores: mapa registrationId -> tiempo string (HH:MM:SS)
   const [runnerTimes, setRunnerTimes] = useState<Record<string, string>>({});
+
+  // Corredores registrados como Descalificados: mapa registrationId -> boolean
+  const [disqualifiedRunners, setDisqualifiedRunners] = useState<Record<string, boolean>>({});
 
   // Buscador para la tabla de corredores
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -186,16 +190,21 @@ export const RaceResultsManagement: React.FC = () => {
       }
       setCategoryWinners(catMap);
 
-      // Cargar Tiempos de Corredores
+      // Cargar Tiempos de Corredores y Estado de Descalificación
       const timesMap: Record<string, string> = {};
+      const dqMap: Record<string, boolean> = {};
       if (existingResults?.tiemposCorredores && Array.isArray(existingResults.tiemposCorredores)) {
         for (const t of existingResults.tiemposCorredores) {
           if (t.registrationId) {
             timesMap[String(t.registrationId)] = t.tiempo || '';
+            if (t.descalificado) {
+              dqMap[String(t.registrationId)] = true;
+            }
           }
         }
       }
       setRunnerTimes(timesMap);
+      setDisqualifiedRunners(dqMap);
     } catch (err: any) {
       console.error('Error al cargar resultados de la carrera:', err);
       setErrorNotice(
@@ -404,6 +413,42 @@ export const RaceResultsManagement: React.FC = () => {
   };
 
   /**
+   * Helper: Alterna el estado de descalificación de un corredor en los resultados
+   */
+  const handleToggleDisqualified = (regId: string) => {
+    setDisqualifiedRunners((prev) => {
+      const isCurrentlyDq = Boolean(prev[regId]);
+      const nextState = !isCurrentlyDq;
+
+      // Si se descalifica al corredor, también removerlo del podio y de ganadores de categoría si estaba asignado
+      if (nextState) {
+        setPodium((prevPod) =>
+          prevPod.map((p) =>
+            p.registrationId === regId
+              ? { ...p, corredorId: '', registrationId: undefined, dorsal: undefined, nombre: '', tiempo: '' }
+              : p
+          )
+        );
+
+        setCategoryWinners((prevCatWinners) => {
+          const updated = { ...prevCatWinners };
+          for (const catKey of Object.keys(updated)) {
+            if (updated[catKey]?.registrationId === regId) {
+              updated[catKey] = { categoria: catKey, corredorId: '', tiempo: '' };
+            }
+          }
+          return updated;
+        });
+      }
+
+      return {
+        ...prev,
+        [regId]: nextState,
+      };
+    });
+  };
+
+  /**
    * Guardar Resultados completos de la carrera y distancia seleccionada
    */
   const handleSaveResults = async () => {
@@ -416,7 +461,7 @@ export const RaceResultsManagement: React.FC = () => {
 
       // Preparar payload de podio general
       const clasificacionGeneralPayload = podium
-        .filter((p) => p.corredorId)
+        .filter((p) => p.corredorId && !disqualifiedRunners[p.registrationId || ''])
         .map((p) => ({
           posicion: p.posicion,
           corredor: p.corredorId,
@@ -428,7 +473,7 @@ export const RaceResultsManagement: React.FC = () => {
 
       // Preparar payload de ganadores por categoría
       const ganadoresCategoriasPayload = Object.values(categoryWinners)
-        .filter((gw) => gw.corredorId)
+        .filter((gw) => gw.corredorId && !disqualifiedRunners[gw.registrationId || ''])
         .map((gw) => ({
           categoria: gw.categoria,
           corredor: gw.corredorId,
@@ -440,16 +485,17 @@ export const RaceResultsManagement: React.FC = () => {
 
       // Preparar payload de tiempos de todos los corredores
       const tiemposCorredoresPayload = runnersForDistance.map((reg) => {
+        const isDq = Boolean(disqualifiedRunners[reg._id]);
         const timeStr = runnerTimes[reg._id] || '';
 
-        // Verificar si tiene posición en el podio general
-        const podEntry = podium.find((p) => p.registrationId === reg._id);
+        // Verificar si tiene posición en el podio general (si no está descalificado)
+        const podEntry = isDq ? null : podium.find((p) => p.registrationId === reg._id);
         const posGen = podEntry ? podEntry.posicion : null;
 
-        // Verificar si es ganador de su categoría
-        const isCatWinner = Object.values(categoryWinners).some(
-          (gw) => gw.registrationId === reg._id
-        );
+        // Verificar si es ganador de su categoría (si no está descalificado)
+        const isCatWinner = isDq
+          ? false
+          : Object.values(categoryWinners).some((gw) => gw.registrationId === reg._id);
         const posCat = isCatWinner ? 1 : null;
 
         return {
@@ -459,9 +505,10 @@ export const RaceResultsManagement: React.FC = () => {
           nombre: `${reg.datosCorredor?.nombre || ''} ${reg.datosCorredor?.apellido || ''}`.trim(),
           categoria: reg.categoria || '',
           distancia: selectedDistance,
-          tiempo: timeStr.trim(),
+          tiempo: isDq ? 'Descalificado' : timeStr.trim(),
           posicionGeneral: posGen,
           posicionCategoria: posCat,
+          descalificado: isDq,
         };
       });
 
@@ -798,11 +845,15 @@ export const RaceResultsManagement: React.FC = () => {
                     className="w-full px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine cursor-pointer transition-all"
                   >
                     <option value="">-- Seleccionar Corredor --</option>
-                    {runnersForDistance.map((r) => (
-                      <option key={r._id} value={r._id}>
-                        [Dorsal #{r.dorsal}] {r.datosCorredor?.nombre} {r.datosCorredor?.apellido} (DNI {r.datosCorredor?.dni})
-                      </option>
-                    ))}
+                    {runnersForDistance.map((r) => {
+                      const isDq = Boolean(disqualifiedRunners[r._id]);
+                      return (
+                        <option key={r._id} value={r._id} disabled={isDq}>
+                          [Dorsal #{r.dorsal}] {r.datosCorredor?.nombre} {r.datosCorredor?.apellido}{' '}
+                          {isDq ? '(DESCALIFICADO)' : `(DNI ${r.datosCorredor?.dni})`}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -920,22 +971,30 @@ export const RaceResultsManagement: React.FC = () => {
                         {/* Primero los que coinciden con la categoría */}
                         {runnersInCat.length > 0 && (
                           <optgroup label="Corredores de la categoría">
-                            {runnersInCat.map((r) => (
-                              <option key={r._id} value={r._id}>
-                                [Dorsal #{r.dorsal}] {r.datosCorredor?.nombre} {r.datosCorredor?.apellido}
-                              </option>
-                            ))}
+                            {runnersInCat.map((r) => {
+                              const isDq = Boolean(disqualifiedRunners[r._id]);
+                              return (
+                                <option key={r._id} value={r._id} disabled={isDq}>
+                                  [Dorsal #{r.dorsal}] {r.datosCorredor?.nombre} {r.datosCorredor?.apellido}{' '}
+                                  {isDq ? '(DESCALIFICADO)' : ''}
+                                </option>
+                              );
+                            })}
                           </optgroup>
                         )}
                         {/* Todos los demás corredores de la distancia */}
                         <optgroup label="Otros corredores de la distancia">
                           {runnersForDistance
                             .filter((r) => r.categoria !== cat.nombre)
-                            .map((r) => (
-                              <option key={r._id} value={r._id}>
-                                [Dorsal #{r.dorsal}] {r.datosCorredor?.nombre} {r.datosCorredor?.apellido} ({r.categoria || 'Sin cat.'})
-                              </option>
-                            ))}
+                            .map((r) => {
+                              const isDq = Boolean(disqualifiedRunners[r._id]);
+                              return (
+                                <option key={r._id} value={r._id} disabled={isDq}>
+                                  [Dorsal #{r.dorsal}] {r.datosCorredor?.nombre} {r.datosCorredor?.apellido} (
+                                  {r.categoria || 'Sin cat.'}) {isDq ? '(DESCALIFICADO)' : ''}
+                                </option>
+                              );
+                            })}
                         </optgroup>
                       </select>
                     </div>
@@ -997,15 +1056,16 @@ export const RaceResultsManagement: React.FC = () => {
                 <th className="px-5 py-4 w-24 text-center">Dorsal</th>
                 <th className="px-5 py-4">Corredor</th>
                 <th className="px-5 py-4 w-32 text-center">DNI</th>
-                <th className="px-5 py-4 w-48">Categoría</th>
-                <th className="px-5 py-4 w-40 text-center">Distinción</th>
-                <th className="px-5 py-4 w-52 text-center">Tiempo Oficial (HH:MM:SS)</th>
+                <th className="px-5 py-4 w-44">Categoría</th>
+                <th className="px-5 py-4 w-36 text-center">Distinción</th>
+                <th className="px-5 py-4 w-36 text-center">Estado</th>
+                <th className="px-5 py-4 w-60 text-center">Edición de Tiempos (HH:MM:SS)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredRunners.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
                     <p className="text-sm font-bold text-slate-600">No se encontraron corredores inscriptos en {selectedDistance}k</p>
                     <p className="text-xs text-slate-400 mt-1">
                       {searchTerm.trim() ? 'Prueba con otro término de búsqueda.' : 'No hay inscripciones activas para esta distancia.'}
@@ -1015,19 +1075,31 @@ export const RaceResultsManagement: React.FC = () => {
               ) : (
                 filteredRunners.map((runner) => {
                   const currentRunnerTime = runnerTimes[runner._id] || '';
+                  const isDq = Boolean(disqualifiedRunners[runner._id]);
 
-                  // ¿Tiene puesto en el podio general?
-                  const podEntry = podium.find((p) => p.registrationId === runner._id);
-                  // ¿Es ganador de categoría?
-                  const isCatWinner = Object.values(categoryWinners).some(
-                    (gw) => gw.registrationId === runner._id
-                  );
+                  // ¿Tiene puesto en el podio general? (Solo si no está descalificado)
+                  const podEntry = isDq ? null : podium.find((p) => p.registrationId === runner._id);
+                  // ¿Es ganador de categoría? (Solo si no está descalificado)
+                  const isCatWinner = isDq
+                    ? false
+                    : Object.values(categoryWinners).some((gw) => gw.registrationId === runner._id);
 
                   return (
-                    <tr key={runner._id} className="hover:bg-slate-50/70 transition-colors">
+                    <tr
+                      key={runner._id}
+                      className={`transition-colors ${
+                        isDq ? 'bg-rose-50/30 hover:bg-rose-50/50' : 'hover:bg-slate-50/70'
+                      }`}
+                    >
                       {/* Dorsal */}
                       <td className="px-5 py-4 text-center">
-                        <span className="font-black text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md text-xs">
+                        <span
+                          className={`font-black px-2.5 py-1 rounded-md text-xs ${
+                            isDq
+                              ? 'bg-rose-100 text-rose-800 line-through'
+                              : 'bg-slate-100 text-slate-800'
+                          }`}
+                        >
                           #{runner.dorsal}
                         </span>
                       </td>
@@ -1035,7 +1107,7 @@ export const RaceResultsManagement: React.FC = () => {
                       {/* Corredor */}
                       <td className="px-5 py-4">
                         <div>
-                          <p className="font-bold text-slate-800 text-sm">
+                          <p className={`font-bold text-sm ${isDq ? 'text-slate-500' : 'text-slate-800'}`}>
                             {runner.datosCorredor?.nombre} {runner.datosCorredor?.apellido}
                           </p>
                           <span className="text-[11px] text-slate-400">
@@ -1059,43 +1131,104 @@ export const RaceResultsManagement: React.FC = () => {
                       {/* Distinción / Posición */}
                       <td className="px-5 py-4 text-center">
                         <div className="flex flex-col items-center gap-1">
-                          {podEntry && (
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-black shadow-2xs ${
-                                podEntry.posicion === 1
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                                  : podEntry.posicion === 2
-                                  ? 'bg-slate-200 text-slate-800 border border-slate-300'
-                                  : 'bg-orange-100 text-orange-900 border border-orange-300'
-                              }`}
-                            >
-                              {podEntry.posicion === 1 ? '🥇 #1 General' : podEntry.posicion === 2 ? '🥈 #2 General' : '🥉 #3 General'}
+                          {isDq ? (
+                            <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 px-2.5 py-0.5 rounded text-[10px] font-black uppercase shadow-2xs">
+                              🚫 Descalificado
                             </span>
-                          )}
+                          ) : (
+                            <>
+                              {podEntry && (
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-black shadow-2xs ${
+                                    podEntry.posicion === 1
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                      : podEntry.posicion === 2
+                                      ? 'bg-slate-200 text-slate-800 border border-slate-300'
+                                      : 'bg-orange-100 text-orange-900 border border-orange-300'
+                                  }`}
+                                >
+                                  {podEntry.posicion === 1 ? '🥇 #1 General' : podEntry.posicion === 2 ? '🥈 #2 General' : '🥉 #3 General'}
+                                </span>
+                              )}
 
-                          {isCatWinner && (
-                            <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-black">
-                              🏆 Ganador Cat.
-                            </span>
-                          )}
+                              {isCatWinner && (
+                                <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-black">
+                                  🏆 Ganador Cat.
+                                </span>
+                              )}
 
-                          {!podEntry && !isCatWinner && (
-                            <span className="text-slate-400 text-[11px]">-</span>
+                              {!podEntry && !isCatWinner && (
+                                <span className="text-slate-400 text-[11px]">-</span>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
 
-                      {/* Tiempo Oficial Editable */}
+                      {/* Estado en Resultados */}
                       <td className="px-5 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2 max-w-[180px] mx-auto">
-                          <input
-                            type="text"
-                            value={currentRunnerTime}
-                            onChange={(e) => handleRunnerTimeChange(runner._id, e.target.value)}
-                            placeholder="00:00:00"
-                            className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-200 bg-white text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine transition-all"
-                            title="Ingresa el tiempo en formato HH:MM:SS"
-                          />
+                        {isDq ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs">
+                              <Ban className="w-3 h-3 text-rose-600" />
+                              <span>Descalificado</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDisqualified(runner._id)}
+                              className="text-[10px] font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                              title="Restablecer corredor como Clasificado"
+                            >
+                              Habilitar
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Clasificado</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleDisqualified(runner._id)}
+                              className="text-[10px] font-bold text-rose-600 hover:text-rose-800 underline cursor-pointer"
+                              title="Descalificar al corredor de la carrera"
+                            >
+                              Descalificar
+                            </button>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Edición de Tiempos Oficiales */}
+                      <td className="px-5 py-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5 max-w-[210px] mx-auto">
+                          {isDq ? (
+                            <div className="flex-1 px-3 py-1.5 text-xs font-black uppercase tracking-wider rounded-lg border border-rose-300 bg-rose-50 text-rose-700 text-center select-none shadow-2xs">
+                              DESCALIFICADO
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              value={currentRunnerTime}
+                              onChange={(e) => handleRunnerTimeChange(runner._id, e.target.value)}
+                              placeholder="00:00:00"
+                              className="flex-1 px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-200 bg-white text-slate-800 text-center focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine transition-all"
+                              title="Ingresa el tiempo en formato HH:MM:SS"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDisqualified(runner._id)}
+                            className={`p-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                              isDq
+                                ? 'bg-rose-100 border-rose-300 text-rose-800 hover:bg-rose-200'
+                                : 'bg-slate-50 border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200'
+                            }`}
+                            title={isDq ? 'Restablecer corredor como Clasificado' : 'Marcar corredor como Descalificado'}
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>

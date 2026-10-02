@@ -744,6 +744,8 @@ export const updateRegistration = async (req: Request, res: Response): Promise<v
       dni,
       email,
       telefono,
+      fechaNacimiento,
+      sexo,
       ciudad,
       provincia,
       contactoEmergencia,
@@ -756,15 +758,26 @@ export const updateRegistration = async (req: Request, res: Response): Promise<v
       return;
     }
 
+    const race = await Race.findById(registration.carrera);
+
     const cambios: Array<{ campo: string; etiqueta: string; valorAnterior: any; nuevoValor: any }> = [];
 
     // Modificación de dorsal
     if (dorsal !== undefined && Number(dorsal) !== registration.dorsal) {
       const newDorsalNum = Number(dorsal);
       if (isNaN(newDorsalNum) || newDorsalNum < 1) {
-        res.status(400).json({ error: 'Dorsal inválido', message: 'El dorsal debe ser un número positivo' });
+        res.status(400).json({ error: 'Dorsal inválido', message: 'El dorsal debe ser un número positivo mayor a 0' });
         return;
       }
+
+      if (race && race.cupoMaximo && newDorsalNum > race.cupoMaximo) {
+        res.status(400).json({
+          error: 'Dorsal excede el cupo',
+          message: `El dorsal #${newDorsalNum} excede el cupo máximo permitido para esta carrera (${race.cupoMaximo})`,
+        });
+        return;
+      }
+
       const existingDorsal = await Registration.findOne({
         carrera: registration.carrera,
         dorsal: newDorsalNum,
@@ -857,6 +870,52 @@ export const updateRegistration = async (req: Request, res: Response): Promise<v
       registration.datosCorredor.telefono = telefono.trim();
     }
 
+    // Fecha de nacimiento y recálculo automático de categoría
+    if (fechaNacimiento) {
+      const newBirth = new Date(fechaNacimiento);
+      const prevBirth = new Date(registration.datosCorredor.fechaNacimiento);
+      const newBirthIso = newBirth.toISOString().slice(0, 10);
+      const prevBirthIso = prevBirth.toISOString().slice(0, 10);
+
+      if (newBirthIso !== prevBirthIso) {
+        const formatD = (d: Date) =>
+          d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        cambios.push({
+          campo: 'Fecha de Nacimiento',
+          etiqueta: 'Fecha de Nacimiento',
+          valorAnterior: formatD(prevBirth),
+          nuevoValor: formatD(newBirth),
+        });
+        registration.datosCorredor.fechaNacimiento = newBirth;
+
+        // Recalcular categoría según la nueva edad a la fecha del evento
+        if (race && race.fecha) {
+          const newCategory = determineRunnerCategory(newBirth, race.fecha, race.categorias);
+          const prevCategory = registration.categoria || '';
+          if (newCategory !== prevCategory) {
+            cambios.push({
+              campo: 'Categoría',
+              etiqueta: 'Categoría',
+              valorAnterior: prevCategory || '-',
+              nuevoValor: newCategory,
+            });
+            registration.categoria = newCategory;
+          }
+        }
+      }
+    }
+
+    // Sexo
+    if (sexo && ['Masculino', 'Femenino'].includes(sexo) && sexo !== registration.datosCorredor.sexo) {
+      cambios.push({
+        campo: 'Sexo',
+        etiqueta: 'Sexo',
+        valorAnterior: registration.datosCorredor.sexo,
+        nuevoValor: sexo,
+      });
+      registration.datosCorredor.sexo = sexo;
+    }
+
     if (ciudad !== undefined && ciudad.trim() !== (registration.datosCorredor.ciudad || '')) {
       cambios.push({
         campo: 'Ciudad',
@@ -877,8 +936,25 @@ export const updateRegistration = async (req: Request, res: Response): Promise<v
       registration.datosCorredor.provincia = provincia.trim();
     }
 
+    // Contacto de emergencia
     if (contactoEmergencia) {
-      registration.datosCorredor.contactoEmergencia = contactoEmergencia;
+      const prevNombre = registration.datosCorredor.contactoEmergencia?.nombre || '';
+      const prevTel = registration.datosCorredor.contactoEmergencia?.telefono || '';
+      const newNombre = (contactoEmergencia.nombre || '').trim();
+      const newTel = (contactoEmergencia.telefono || '').trim();
+
+      if (prevNombre !== newNombre || prevTel !== newTel) {
+        cambios.push({
+          campo: 'Contacto de Emergencia',
+          etiqueta: 'Contacto de Emergencia',
+          valorAnterior: prevNombre ? `${prevNombre} (${prevTel})` : '-',
+          nuevoValor: newNombre ? `${newNombre} (${newTel})` : '-',
+        });
+        registration.datosCorredor.contactoEmergencia = {
+          nombre: newNombre,
+          telefono: newTel,
+        };
+      }
     }
 
     await registration.save();

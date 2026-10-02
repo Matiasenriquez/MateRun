@@ -31,6 +31,7 @@ export interface IRaceResult extends Document {
   posicionCategoria?: number | null; // null = Pendiente
   posicionSexo?: number | null;
   categoria?: string | null; // ej. "20-29"
+  descalificado?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -87,6 +88,10 @@ const RaceResultSchema = new Schema<IRaceResult>(
       required: false,
       trim: true,
       default: null,
+    },
+    descalificado: {
+      type: Boolean,
+      default: false,
     },
   },
   {

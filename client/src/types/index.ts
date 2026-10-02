@@ -144,6 +144,7 @@ export interface RaceResult {
   posicionCategoria?: number | null; // null si está pendiente
   posicionSexo?: number | null;
   categoria?: string | null; // ej. "20-29"
+  descalificado?: boolean;
 }
 
 /**

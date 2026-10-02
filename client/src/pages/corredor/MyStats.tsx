@@ -185,7 +185,11 @@ export const MyStats: React.FC = () => {
 
                   {/* Tiempo */}
                   <td className="px-4 py-3.5 text-center font-mono font-medium">
-                    {hist.tiempoFormateado ? (
+                    {hist.descalificado ? (
+                      <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 px-2.5 py-0.5 rounded-full text-xs font-black uppercase">
+                        🚫 Descalificado
+                      </span>
+                    ) : hist.tiempoFormateado ? (
                       <span className="text-slate-800">{hist.tiempoFormateado}</span>
                     ) : (
                       renderPendingBadge()
@@ -194,7 +198,9 @@ export const MyStats: React.FC = () => {
 
                   {/* Posición General */}
                   <td className="px-4 py-3.5 text-center">
-                    {hist.posicionGeneral != null && hist.posicionGeneral > 0 ? (
+                    {hist.descalificado ? (
+                      <span className="text-slate-400 font-bold text-xs">-</span>
+                    ) : hist.posicionGeneral != null && hist.posicionGeneral > 0 ? (
                       hist.posicionGeneral === 1 ? (
                         <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
                           🥇 #1
@@ -219,7 +225,9 @@ export const MyStats: React.FC = () => {
 
                   {/* Posición por Categoría */}
                   <td className="px-4 py-3.5 text-center">
-                    {hist.posicionCategoria != null && hist.posicionCategoria > 0 ? (
+                    {hist.descalificado ? (
+                      <span className="text-slate-400 font-bold text-xs">-</span>
+                    ) : hist.posicionCategoria != null && hist.posicionCategoria > 0 ? (
                       <span className="inline-flex items-center text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
                         {hist.categoria 
                           ? `#${hist.posicionCategoria} en categoría ${hist.categoria}`
