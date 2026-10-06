@@ -150,7 +150,7 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         })
       : [];
 
-    // 3. Normalizar Ganadores por Categoría de Edad
+    // 3. Normalizar Ganadores por Categoría de Edad (1.º, 2.º y 3.º puestos)
     const normalizedCategorias = Array.isArray(ganadoresCategorias)
       ? ganadoresCategorias.map((entry: any) => {
           const segs = entry.tiempoSegundos !== undefined && entry.tiempoSegundos !== null
@@ -159,6 +159,7 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
           const formatted = segs > 0 ? formatSecondsToTime(segs) : entry.tiempo || '';
           return {
             categoria: String(entry.categoria || '').trim(),
+            posicion: Number(entry.posicion) || 1,
             corredor: entry.corredor,
             registrationId: entry.registrationId,
             dorsal: Number(entry.dorsal) || undefined,
@@ -275,7 +276,7 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         ...prev,
         tiempoSegundos:
           cat.tiempoSegundos && cat.tiempoSegundos > 0 ? cat.tiempoSegundos : prev.tiempoSegundos,
-        posicionCategoria: 1, // Es ganador de su categoría
+        posicionCategoria: Number(cat.posicion) || 1, // Es 1.º, 2.º o 3.º puesto de su categoría
         categoria: cat.categoria,
       });
     }

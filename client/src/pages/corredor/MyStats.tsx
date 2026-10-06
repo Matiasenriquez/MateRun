@@ -228,12 +228,26 @@ export const MyStats: React.FC = () => {
                     {hist.descalificado ? (
                       <span className="text-slate-400 font-bold text-xs">-</span>
                     ) : hist.posicionCategoria != null && hist.posicionCategoria > 0 ? (
-                      <span className="inline-flex items-center text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
-                        {hist.categoria 
-                          ? `#${hist.posicionCategoria} en categoría ${hist.categoria}`
-                          : `#${hist.posicionCategoria}`
-                        }
-                      </span>
+                      hist.posicionCategoria === 1 ? (
+                        <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
+                          🥇 1.º {hist.categoria ? `en cat. ${hist.categoria}` : ''}
+                        </span>
+                      ) : hist.posicionCategoria === 2 ? (
+                        <span className="inline-flex items-center gap-1 bg-slate-200 text-slate-800 border border-slate-300 px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
+                          🥈 2.º {hist.categoria ? `en cat. ${hist.categoria}` : ''}
+                        </span>
+                      ) : hist.posicionCategoria === 3 ? (
+                        <span className="inline-flex items-center gap-1 bg-amber-900/10 text-amber-900 border border-amber-900/20 px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
+                          🥉 3.º {hist.categoria ? `en cat. ${hist.categoria}` : ''}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                          {hist.categoria 
+                            ? `#${hist.posicionCategoria} en categoría ${hist.categoria}`
+                            : `#${hist.posicionCategoria}`
+                          }
+                        </span>
+                      )
                     ) : (
                       renderPendingBadge()
                     )}

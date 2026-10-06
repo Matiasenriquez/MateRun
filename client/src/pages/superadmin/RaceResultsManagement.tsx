@@ -69,8 +69,9 @@ interface PodiumPosition {
   tiempo: string;
 }
 
-interface CategoryWinner {
+interface CategoryPodiumPosition {
   categoria: string;
+  posicion: number; // 1, 2, 3
   corredorId: string;
   registrationId?: string;
   dorsal?: number;
@@ -100,8 +101,8 @@ export const RaceResultsManagement: React.FC = () => {
     { posicion: 3, corredorId: '', tiempo: '' },
   ]);
 
-  // Ganadores por Categoría de Edad
-  const [categoryWinners, setCategoryWinners] = useState<Record<string, CategoryWinner>>({});
+  // Ganadores por Categoría de Edad: mapa categoria -> 3 puestos (1.º, 2.º y 3.º)
+  const [categoryWinners, setCategoryWinners] = useState<Record<string, CategoryPodiumPosition[]>>({});
 
   // Tiempos individuales de corredores: mapa registrationId -> tiempo string (HH:MM:SS)
   const [runnerTimes, setRunnerTimes] = useState<Record<string, string>>({});
@@ -164,28 +165,36 @@ export const RaceResultsManagement: React.FC = () => {
       }
       setPodium(initialPodium);
 
-      // Cargar Ganadores por Categoría
-      const catMap: Record<string, CategoryWinner> = {};
+      // Cargar Ganadores por Categoría (1.º, 2.º y 3.º puestos por categoría)
+      const catMap: Record<string, CategoryPodiumPosition[]> = {};
       const configuredCategories = raceData.categorias || [];
 
       for (const cat of configuredCategories) {
-        catMap[cat.nombre] = {
-          categoria: cat.nombre,
-          corredorId: '',
-          tiempo: '',
-        };
+        catMap[cat.nombre] = [
+          { categoria: cat.nombre, posicion: 1, corredorId: '', tiempo: '' },
+          { categoria: cat.nombre, posicion: 2, corredorId: '', tiempo: '' },
+          { categoria: cat.nombre, posicion: 3, corredorId: '', tiempo: '' },
+        ];
       }
 
       if (existingResults?.ganadoresCategorias && Array.isArray(existingResults.ganadoresCategorias)) {
         for (const gw of existingResults.ganadoresCategorias) {
-          catMap[gw.categoria] = {
-            categoria: gw.categoria,
-            corredorId: gw.corredor ? String(gw.corredor) : '',
-            registrationId: gw.registrationId ? String(gw.registrationId) : undefined,
-            dorsal: gw.dorsal,
-            nombre: gw.nombre,
-            tiempo: gw.tiempo || '',
-          };
+          const list = catMap[gw.categoria];
+          if (list) {
+            const pos = Number(gw.posicion) || 1;
+            const targetIdx = list.findIndex((p) => p.posicion === pos);
+            if (targetIdx !== -1) {
+              list[targetIdx] = {
+                categoria: gw.categoria,
+                posicion: pos,
+                corredorId: gw.corredor ? String(gw.corredor) : '',
+                registrationId: gw.registrationId ? String(gw.registrationId) : undefined,
+                dorsal: gw.dorsal,
+                nombre: gw.nombre,
+                tiempo: gw.tiempo || '',
+              };
+            }
+          }
         }
       }
       setCategoryWinners(catMap);
@@ -325,35 +334,44 @@ export const RaceResultsManagement: React.FC = () => {
   };
 
   /**
-   * Helper: Asigna un corredor ganador para una categoría
+   * Helper: Asigna un corredor a un puesto de una categoría de edad (1.º, 2.º o 3.º)
    */
-  const handleSelectCategoryWinner = (catName: string, regId: string) => {
+  const handleSelectCategoryWinner = (catName: string, pos: number, regId: string) => {
     const selectedReg = runnersForDistance.find((r) => r._id === regId);
 
     setCategoryWinners((prev) => {
-      if (!regId) {
-        return {
-          ...prev,
-          [catName]: { categoria: catName, corredorId: '', tiempo: '' },
-        };
-      }
+      const currentList = prev[catName] || [
+        { categoria: catName, posicion: 1, corredorId: '', tiempo: '' },
+        { categoria: catName, posicion: 2, corredorId: '', tiempo: '' },
+        { categoria: catName, posicion: 3, corredorId: '', tiempo: '' },
+      ];
 
-      const existingTime = runnerTimes[regId] || prev[catName]?.tiempo || '';
+      const updatedList = currentList.map((item) => {
+        if (item.posicion === pos) {
+          if (!regId) {
+            return { ...item, corredorId: '', registrationId: undefined, dorsal: undefined, nombre: '' };
+          }
+          const regTime = runnerTimes[regId] || item.tiempo || '';
+          return {
+            ...item,
+            corredorId: selectedReg?.corredor?._id || '',
+            registrationId: regId,
+            dorsal: selectedReg?.dorsal,
+            nombre: `${selectedReg?.datosCorredor?.nombre || ''} ${selectedReg?.datosCorredor?.apellido || ''}`.trim(),
+            tiempo: regTime,
+          };
+        }
+        return item;
+      });
+
       return {
         ...prev,
-        [catName]: {
-          categoria: catName,
-          corredorId: selectedReg?.corredor?._id || '',
-          registrationId: regId,
-          dorsal: selectedReg?.dorsal,
-          nombre: `${selectedReg?.datosCorredor?.nombre || ''} ${selectedReg?.datosCorredor?.apellido || ''}`.trim(),
-          tiempo: existingTime,
-        },
+        [catName]: updatedList,
       };
     });
 
     if (regId && !runnerTimes[regId]) {
-      const existingTime = categoryWinners[catName]?.tiempo;
+      const existingTime = categoryWinners[catName]?.find((p) => p.posicion === pos)?.tiempo;
       if (existingTime) {
         setRunnerTimes((prev) => ({ ...prev, [regId]: existingTime }));
       }
@@ -361,18 +379,24 @@ export const RaceResultsManagement: React.FC = () => {
   };
 
   /**
-   * Helper: Modifica el tiempo de un ganador de categoría
+   * Helper: Modifica el tiempo de un puesto de categoría de edad
    */
-  const handleCategoryWinnerTimeChange = (catName: string, timeVal: string) => {
-    setCategoryWinners((prev) => ({
-      ...prev,
-      [catName]: {
-        ...prev[catName],
-        tiempo: timeVal,
-      },
-    }));
+  const handleCategoryWinnerTimeChange = (catName: string, pos: number, timeVal: string) => {
+    setCategoryWinners((prev) => {
+      const currentList = prev[catName] || [];
+      const updatedList = currentList.map((item) => {
+        if (item.posicion === pos) {
+          return { ...item, tiempo: timeVal };
+        }
+        return item;
+      });
+      return {
+        ...prev,
+        [catName]: updatedList,
+      };
+    });
 
-    const currentWinner = categoryWinners[catName];
+    const currentWinner = categoryWinners[catName]?.find((p) => p.posicion === pos);
     if (currentWinner?.registrationId) {
       setRunnerTimes((prev) => ({
         ...prev,
@@ -390,7 +414,7 @@ export const RaceResultsManagement: React.FC = () => {
       [regId]: timeVal,
     }));
 
-    // Sincronizar con podio si el corredor está en el podio
+    // Sincronizar con podio si el corredor está en el podio general
     setPodium((prev) =>
       prev.map((item) => {
         if (item.registrationId === regId) {
@@ -400,15 +424,20 @@ export const RaceResultsManagement: React.FC = () => {
       })
     );
 
-    // Sincronizar con ganadores de categoría si es ganador
+    // Sincronizar con ganadores de categoría si tiene un puesto asignado
     setCategoryWinners((prev) => {
       const copy = { ...prev };
+      let changed = false;
       for (const catKey of Object.keys(copy)) {
-        if (copy[catKey].registrationId === regId) {
-          copy[catKey] = { ...copy[catKey], tiempo: timeVal };
-        }
+        copy[catKey] = copy[catKey].map((p) => {
+          if (p.registrationId === regId) {
+            changed = true;
+            return { ...p, tiempo: timeVal };
+          }
+          return p;
+        });
       }
-      return copy;
+      return changed ? copy : prev;
     });
   };
 
@@ -433,9 +462,11 @@ export const RaceResultsManagement: React.FC = () => {
         setCategoryWinners((prevCatWinners) => {
           const updated = { ...prevCatWinners };
           for (const catKey of Object.keys(updated)) {
-            if (updated[catKey]?.registrationId === regId) {
-              updated[catKey] = { categoria: catKey, corredorId: '', tiempo: '' };
-            }
+            updated[catKey] = updated[catKey].map((p) =>
+              p.registrationId === regId
+                ? { ...p, corredorId: '', registrationId: undefined, dorsal: undefined, nombre: '', tiempo: '' }
+                : p
+            );
           }
           return updated;
         });
@@ -471,11 +502,13 @@ export const RaceResultsManagement: React.FC = () => {
           tiempo: p.tiempo.trim(),
         }));
 
-      // Preparar payload de ganadores por categoría
+      // Preparar payload de ganadores por categoría (1.º, 2.º y 3.º puestos)
       const ganadoresCategoriasPayload = Object.values(categoryWinners)
+        .flat()
         .filter((gw) => gw.corredorId && !disqualifiedRunners[gw.registrationId || ''])
         .map((gw) => ({
           categoria: gw.categoria,
+          posicion: gw.posicion,
           corredor: gw.corredorId,
           registrationId: gw.registrationId,
           dorsal: gw.dorsal,
@@ -492,11 +525,17 @@ export const RaceResultsManagement: React.FC = () => {
         const podEntry = isDq ? null : podium.find((p) => p.registrationId === reg._id);
         const posGen = podEntry ? podEntry.posicion : null;
 
-        // Verificar si es ganador de su categoría (si no está descalificado)
-        const isCatWinner = isDq
-          ? false
-          : Object.values(categoryWinners).some((gw) => gw.registrationId === reg._id);
-        const posCat = isCatWinner ? 1 : null;
+        // Verificar si tiene posición en su categoría de edad (1.º, 2.º o 3.º puesto)
+        let posCat: number | null = null;
+        if (!isDq) {
+          for (const positions of Object.values(categoryWinners)) {
+            const match = positions.find((p) => p.registrationId === reg._id && p.corredorId);
+            if (match) {
+              posCat = match.posicion;
+              break;
+            }
+          }
+        }
 
         return {
           corredor: reg.corredor?._id,
@@ -891,9 +930,9 @@ export const RaceResultsManagement: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 4. GANADORES POR CATEGORÍA DE EDAD                                        */}
+      {/* 4. GANADORES POR CATEGORÍA DE EDAD (1.º, 2.º Y 3.º PUESTOS)              */}
       {/* ========================================================================= */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-200/80">
@@ -904,7 +943,7 @@ export const RaceResultsManagement: React.FC = () => {
                 Ganadores por Categoría de Edad — {selectedDistance}k
               </h2>
               <p className="text-xs text-slate-500">
-                Asigna y edita el corredor ganador de cada categoría etaria configurada en la carrera.
+                Registra los tres corredores ganadores (1.º, 2.º y 3.º puesto) con sus tiempos oficiales para cada categoría etaria configurada.
               </p>
             </div>
           </div>
@@ -919,97 +958,162 @@ export const RaceResultsManagement: React.FC = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {race.categorias.map((cat, idx) => {
-              const winner = categoryWinners[cat.nombre] || {
-                categoria: cat.nombre,
-                corredorId: '',
-                tiempo: '',
-              };
+              const positions = categoryWinners[cat.nombre] || [
+                { categoria: cat.nombre, posicion: 1, corredorId: '', tiempo: '' },
+                { categoria: cat.nombre, posicion: 2, corredorId: '', tiempo: '' },
+                { categoria: cat.nombre, posicion: 3, corredorId: '', tiempo: '' },
+              ];
 
               // Corredores que pertenecen a esta categoría
               const runnersInCat = runnersForDistance.filter(
                 (r) => r.categoria === cat.nombre
               );
 
+              const assignedCount = positions.filter((p) => p.corredorId).length;
+
               return (
                 <div
                   key={idx}
-                  className="bg-slate-50/60 rounded-2xl border border-slate-200 p-4 space-y-3 hover:border-slate-300 transition-all"
+                  className="bg-slate-50/70 rounded-2xl border border-slate-200 p-5 space-y-4 hover:border-slate-300 transition-all flex flex-col justify-between"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-black text-slate-800 text-xs sm:text-sm uppercase tracking-wide">
-                        {cat.nombre}
-                      </h4>
-                      <span className="text-[11px] text-slate-400 font-semibold">
-                        Rango: {cat.edadMinima} a {cat.edadMaxima} años ({runnersInCat.length} corredores en distancia)
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                        <h4 className="font-black text-slate-800 text-sm uppercase tracking-wide">
+                          {cat.nombre}
+                        </h4>
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-semibold mt-0.5 block">
+                        Rango: {cat.edadMinima} a {cat.edadMaxima} años • ({runnersInCat.length} inscriptos en {selectedDistance}k)
                       </span>
                     </div>
 
-                    {winner.registrationId && (
-                      <button
-                        type="button"
-                        onClick={() => handleSelectCategoryWinner(cat.nombre, '')}
-                        className="text-[11px] font-bold text-slate-400 hover:text-rose-600 transition-colors"
-                        title="Quitar ganador de la categoría"
-                      >
-                        Limpiar
-                      </button>
-                    )}
+                    <span
+                      className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${
+                        assignedCount === 3
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : assignedCount > 0
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-slate-100 text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      {assignedCount}/3 cargados
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {/* Selector de Corredor Ganador */}
-                    <div className="sm:col-span-2">
-                      <select
-                        value={winner.registrationId || ''}
-                        onChange={(e) => handleSelectCategoryWinner(cat.nombre, e.target.value)}
-                        className="w-full px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine cursor-pointer transition-all"
-                      >
-                        <option value="">-- Corredor Ganador --</option>
-                        {/* Primero los que coinciden con la categoría */}
-                        {runnersInCat.length > 0 && (
-                          <optgroup label="Corredores de la categoría">
-                            {runnersInCat.map((r) => {
-                              const isDq = Boolean(disqualifiedRunners[r._id]);
-                              return (
-                                <option key={r._id} value={r._id} disabled={isDq}>
-                                  [Dorsal #{r.dorsal}] {r.datosCorredor?.nombre} {r.datosCorredor?.apellido}{' '}
-                                  {isDq ? '(DESCALIFICADO)' : ''}
-                                </option>
-                              );
-                            })}
-                          </optgroup>
-                        )}
-                        {/* Todos los demás corredores de la distancia */}
-                        <optgroup label="Otros corredores de la distancia">
-                          {runnersForDistance
-                            .filter((r) => r.categoria !== cat.nombre)
-                            .map((r) => {
-                              const isDq = Boolean(disqualifiedRunners[r._id]);
-                              return (
-                                <option key={r._id} value={r._id} disabled={isDq}>
-                                  [Dorsal #{r.dorsal}] {r.datosCorredor?.nombre} {r.datosCorredor?.apellido} (
-                                  {r.categoria || 'Sin cat.'}) {isDq ? '(DESCALIFICADO)' : ''}
-                                </option>
-                              );
-                            })}
-                        </optgroup>
-                      </select>
-                    </div>
+                  {/* Tabla estructurada: Puesto | Corredor | Tiempo */}
+                  <div className="overflow-x-auto rounded-xl border border-slate-200/90 bg-white shadow-2xs">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100/90 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                        <tr>
+                          <th className="px-3.5 py-2.5 w-24">Puesto</th>
+                          <th className="px-3.5 py-2.5">Corredor</th>
+                          <th className="px-3.5 py-2.5 w-36">Tiempo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {positions.map((posItem) => {
+                          const isFirst = posItem.posicion === 1;
+                          const isSecond = posItem.posicion === 2;
+                          const medal = isFirst ? '🥇' : isSecond ? '🥈' : '🥉';
+                          const puestoName = `${posItem.posicion}.º`;
 
-                    {/* Tiempo */}
-                    <div>
-                      <input
-                        type="text"
-                        value={winner.tiempo}
-                        onChange={(e) => handleCategoryWinnerTimeChange(cat.nombre, e.target.value)}
-                        placeholder="HH:MM:SS"
-                        className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine transition-all"
-                        title="Tiempo oficial del ganador de categoría"
-                      />
-                    </div>
+                          return (
+                            <tr key={posItem.posicion} className="hover:bg-slate-50/50 transition-colors">
+                              {/* Columna: Puesto */}
+                              <td className="px-3.5 py-3 align-middle font-bold text-slate-800 whitespace-nowrap">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-base select-none leading-none">{medal}</span>
+                                  <span className="font-extrabold text-xs">{puestoName}</span>
+                                </div>
+                              </td>
+
+                              {/* Columna: Corredor */}
+                              <td className="px-3.5 py-3 align-middle">
+                                <div className="space-y-1">
+                                  <select
+                                    value={posItem.registrationId || ''}
+                                    onChange={(e) =>
+                                      handleSelectCategoryWinner(cat.nombre, posItem.posicion, e.target.value)
+                                    }
+                                    className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine cursor-pointer transition-all"
+                                  >
+                                    <option value="">-- Seleccionar Corredor --</option>
+                                    {runnersInCat.length > 0 && (
+                                      <optgroup label="Corredores de la categoría">
+                                        {runnersInCat.map((r) => {
+                                          const isDq = Boolean(disqualifiedRunners[r._id]);
+                                          const otherPos = positions.find(
+                                            (p) => p.posicion !== posItem.posicion && p.registrationId === r._id
+                                          );
+                                          return (
+                                            <option key={r._id} value={r._id} disabled={isDq || Boolean(otherPos)}>
+                                              [Dorsal #{r.dorsal}] {r.datosCorredor?.nombre} {r.datosCorredor?.apellido}{' '}
+                                              {isDq ? '(DESCALIFICADO)' : otherPos ? `(En ${otherPos.posicion}.º puesto)` : ''}
+                                            </option>
+                                          );
+                                        })}
+                                      </optgroup>
+                                    )}
+                                    <optgroup label="Otros corredores de la distancia">
+                                      {runnersForDistance
+                                        .filter((r) => r.categoria !== cat.nombre)
+                                        .map((r) => {
+                                          const isDq = Boolean(disqualifiedRunners[r._id]);
+                                          const otherPos = positions.find(
+                                            (p) => p.posicion !== posItem.posicion && p.registrationId === r._id
+                                          );
+                                          return (
+                                            <option key={r._id} value={r._id} disabled={isDq || Boolean(otherPos)}>
+                                              [Dorsal #{r.dorsal}] {r.datosCorredor?.nombre} {r.datosCorredor?.apellido} (
+                                              {r.categoria || 'Sin cat.'}){' '}
+                                              {isDq ? '(DESCALIFICADO)' : otherPos ? `(En ${otherPos.posicion}.º puesto)` : ''}
+                                            </option>
+                                          );
+                                        })}
+                                    </optgroup>
+                                  </select>
+
+                                  {posItem.registrationId && (
+                                    <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium px-1">
+                                      <span>Dorsal #{posItem.dorsal}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSelectCategoryWinner(cat.nombre, posItem.posicion, '')}
+                                        className="text-rose-600 hover:underline font-bold"
+                                        title="Quitar corredor del puesto"
+                                      >
+                                        Limpiar
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Columna: Tiempo */}
+                              <td className="px-3.5 py-3 align-middle">
+                                <div className="relative">
+                                  <Timer className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                  <input
+                                    type="text"
+                                    value={posItem.tiempo}
+                                    onChange={(e) =>
+                                      handleCategoryWinnerTimeChange(cat.nombre, posItem.posicion, e.target.value)
+                                    }
+                                    placeholder="00:00:00"
+                                    className="w-full pl-8 pr-2.5 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine transition-all"
+                                    title="Tiempo oficial del corredor"
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               );
@@ -1079,10 +1183,18 @@ export const RaceResultsManagement: React.FC = () => {
 
                   // ¿Tiene puesto en el podio general? (Solo si no está descalificado)
                   const podEntry = isDq ? null : podium.find((p) => p.registrationId === runner._id);
-                  // ¿Es ganador de categoría? (Solo si no está descalificado)
-                  const isCatWinner = isDq
-                    ? false
-                    : Object.values(categoryWinners).some((gw) => gw.registrationId === runner._id);
+                  
+                  // ¿Tiene puesto en su categoría de edad? (1.º, 2.º o 3.º puesto)
+                  let catPodiumEntry: CategoryPodiumPosition | undefined = undefined;
+                  if (!isDq) {
+                    for (const positions of Object.values(categoryWinners)) {
+                      const match = positions.find((p) => p.registrationId === runner._id && p.corredorId);
+                      if (match) {
+                        catPodiumEntry = match;
+                        break;
+                      }
+                    }
+                  }
 
                   return (
                     <tr
@@ -1151,13 +1263,17 @@ export const RaceResultsManagement: React.FC = () => {
                                 </span>
                               )}
 
-                              {isCatWinner && (
+                              {catPodiumEntry && (
                                 <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-black">
-                                  🏆 Ganador Cat.
+                                  {catPodiumEntry.posicion === 1
+                                    ? '🥇 1.º Cat.'
+                                    : catPodiumEntry.posicion === 2
+                                    ? '🥈 2.º Cat.'
+                                    : '🥉 3.º Cat.'}
                                 </span>
                               )}
 
-                              {!podEntry && !isCatWinner && (
+                              {!podEntry && !catPodiumEntry && (
                                 <span className="text-slate-400 text-[11px]">-</span>
                               )}
                             </>

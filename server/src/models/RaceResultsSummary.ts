@@ -23,6 +23,7 @@ export interface IPodiumEntry {
 
 export interface ICategoryWinnerEntry {
   categoria: string;
+  posicion?: number; // 1, 2, 3
   corredor: Types.ObjectId; // User._id
   registrationId?: Types.ObjectId;
   dorsal?: number;
@@ -73,6 +74,7 @@ const PodiumEntrySchema = new Schema<IPodiumEntry>(
 const CategoryWinnerEntrySchema = new Schema<ICategoryWinnerEntry>(
   {
     categoria: { type: String, required: true, trim: true },
+    posicion: { type: Number, default: 1 },
     corredor: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     registrationId: { type: Schema.Types.ObjectId, ref: 'Registration' },
     dorsal: { type: Number },
