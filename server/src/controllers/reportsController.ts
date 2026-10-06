@@ -31,21 +31,29 @@ export const normalizeSexo = (rawSexo?: string): 'Hombres' | 'Mujeres' => {
 };
 
 /**
- * Estructura de un grupo de corredores para la tabla de informes
+ * Estructura de una fila unificada de informes por Distancia + Categoría
  */
 export interface IReportGroup {
   id: string;
   distancia: number;
   distanciaLabel: string;
   categoria: string;
-  sexo: 'Hombres' | 'Mujeres';
-  cantidad: number;
-  inscriptos: any[];
+  cantidadHombres: number;
+  cantidadMujeres: number;
+  total: number;
+  inscriptosHombres: any[];
+  inscriptosMujeres: any[];
+  inscriptosTodos: any[];
+  // Campos de compatibilidad
+  cantidad?: number;
+  sexo?: 'Hombres' | 'Mujeres';
+  inscriptos?: any[];
 }
 
 /**
  * Obtiene el informe consolidado de inscriptos para una carrera específica.
- * Agrupa los corredores activos (estado !== 'Baja') por Distancia, Categoría y Sexo.
+ * Agrupa los corredores activos (estado !== 'Baja') en una única fila por Distancia + Categoría,
+ * discriminando las cantidades y nóminas de Hombres y Mujeres en columnas independientes.
  * 
  * Ruta: GET /api/reports/race/:raceId
  * Acceso: SuperAdmin / Admin
@@ -108,30 +116,33 @@ export const getRaceReports = async (req: Request, res: Response): Promise<void>
       ? race.categorias.map((c) => c.nombre.trim())
       : [];
 
-    // Mapa de grupos: clave = `${distancia}_${categoria}_${sexo}`
+    // Mapa de filas unificadas: clave = `${distancia}_${categoria}`
     const groupsMap = new Map<string, IReportGroup>();
 
-    // Si la carrera tiene categorías y distancias configuradas, inicializamos las combinaciones
+    // Inicializar combinaciones preconfiguradas
     if (configuredCategories.length > 0) {
       for (const dist of allDistances) {
         for (const cat of configuredCategories) {
-          for (const sexo of ['Hombres', 'Mujeres'] as const) {
-            const key = `${dist}_${cat}_${sexo}`;
-            groupsMap.set(key, {
-              id: key,
-              distancia: dist,
-              distanciaLabel: `${dist}k`,
-              categoria: cat,
-              sexo,
-              cantidad: 0,
-              inscriptos: [],
-            });
-          }
+          const key = `${dist}_${cat}`;
+          groupsMap.set(key, {
+            id: key,
+            distancia: dist,
+            distanciaLabel: `${dist}k`,
+            categoria: cat,
+            cantidadHombres: 0,
+            cantidadMujeres: 0,
+            total: 0,
+            inscriptosHombres: [],
+            inscriptosMujeres: [],
+            inscriptosTodos: [],
+            cantidad: 0,
+            inscriptos: [],
+          });
         }
       }
     }
 
-    // Procesar cada inscripción y agregarla al grupo correspondiente
+    // Procesar cada inscripción y agregarla a la fila unificada correspondiente
     for (const reg of registrations) {
       const regObj = reg.toObject();
       const dist = reg.distancia;
@@ -171,41 +182,51 @@ export const getRaceReports = async (req: Request, res: Response): Promise<void>
         porEstado.pendientes++;
       }
 
-      // Asignar al grupo correspondiente
-      const key = `${dist}_${categoria}_${sexo}`;
-      let group = groupsMap.get(key);
+      // Asignar a la fila unificada por Distancia + Categoría
+      const key = `${dist}_${categoria}`;
+      let row = groupsMap.get(key);
 
-      if (!group) {
-        group = {
+      if (!row) {
+        row = {
           id: key,
           distancia: dist,
           distanciaLabel: `${dist}k`,
           categoria,
-          sexo,
+          cantidadHombres: 0,
+          cantidadMujeres: 0,
+          total: 0,
+          inscriptosHombres: [],
+          inscriptosMujeres: [],
+          inscriptosTodos: [],
           cantidad: 0,
           inscriptos: [],
         };
-        groupsMap.set(key, group);
+        groupsMap.set(key, row);
       }
 
-      group.inscriptos.push(processedRunner);
-      group.cantidad = group.inscriptos.length;
+      if (sexo === 'Hombres') {
+        row.inscriptosHombres.push(processedRunner);
+        row.cantidadHombres = row.inscriptosHombres.length;
+      } else {
+        row.inscriptosMujeres.push(processedRunner);
+        row.cantidadMujeres = row.inscriptosMujeres.length;
+      }
+
+      row.inscriptosTodos.push(processedRunner);
+      row.total = row.inscriptosTodos.length;
+      // Compatibilidad
+      row.cantidad = row.total;
+      row.inscriptos = row.inscriptosTodos;
     }
 
-    // Convertir el mapa de grupos a array ordenado
+    // Convertir el mapa de grupos a array ordenado (por Distancia ascendente y luego Categoría)
     const groups = Array.from(groupsMap.values()).sort((a, b) => {
       // 1. Ordenar por Distancia (numérica ascendente)
       if (a.distancia !== b.distancia) {
         return a.distancia - b.distancia;
       }
-      // 2. Ordenar por Categoría alfabética
-      if (a.categoria !== b.categoria) {
-        return a.categoria.localeCompare(b.categoria, 'es', { numeric: true });
-      }
-      // 3. Ordenar por Sexo (Hombres primero, luego Mujeres)
-      if (a.sexo === 'Hombres' && b.sexo === 'Mujeres') return -1;
-      if (a.sexo === 'Mujeres' && b.sexo === 'Hombres') return 1;
-      return 0;
+      // 2. Ordenar por Categoría alfabética / numérica
+      return a.categoria.localeCompare(b.categoria, 'es', { numeric: true });
     });
 
     res.status(200).json({
@@ -230,6 +251,7 @@ export const getRaceReports = async (req: Request, res: Response): Promise<void>
         porEstado,
       },
       groups,
+      rows: groups,
     });
   } catch (error: any) {
     console.error('Error al generar informe de la carrera:', error);

@@ -161,16 +161,23 @@ export interface RunnerStats {
 }
 
 /**
- * Grupo de inscriptos para la tabla de Informes
+ * Fila unificada de inscriptos por Distancia + Categoría para la tabla de Informes
  */
 export interface ReportGroup {
   id: string;
   distancia: number;
   distanciaLabel: string;
   categoria: string;
-  sexo: 'Hombres' | 'Mujeres';
-  cantidad: number;
-  inscriptos: any[];
+  cantidadHombres: number;
+  cantidadMujeres: number;
+  total: number;
+  inscriptosHombres: any[];
+  inscriptosMujeres: any[];
+  inscriptosTodos: any[];
+  // Campos opcionales de compatibilidad
+  cantidad?: number;
+  sexo?: 'Hombres' | 'Mujeres';
+  inscriptos?: any[];
 }
 
 /**
@@ -190,4 +197,5 @@ export interface RaceReportsData {
     };
   };
   groups: ReportGroup[];
+  rows?: ReportGroup[];
 }
