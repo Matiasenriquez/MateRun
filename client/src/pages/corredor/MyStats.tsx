@@ -157,7 +157,8 @@ export const MyStats: React.FC = () => {
                 <th className="px-4 py-3 font-semibold">Carrera</th>
                 <th className="px-4 py-3 font-semibold text-center">Distancia</th>
                 <th className="px-4 py-3 font-semibold text-center">Tiempo</th>
-                <th className="px-4 py-3 font-semibold text-center">Pos. Gral</th>
+                <th className="px-4 py-3 font-semibold text-center">Pos. General</th>
+                <th className="px-4 py-3 font-semibold text-center">Pos. Sexo</th>
                 <th className="px-4 py-3 font-semibold text-center rounded-tr-md">Pos. Categoría</th>
               </tr>
             </thead>
@@ -203,19 +204,46 @@ export const MyStats: React.FC = () => {
                     ) : hist.posicionGeneral != null && hist.posicionGeneral > 0 ? (
                       hist.posicionGeneral === 1 ? (
                         <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
-                          🥇 #1
+                          🥇 #1 Gral
                         </span>
                       ) : hist.posicionGeneral === 2 ? (
                         <span className="inline-flex items-center gap-1 bg-slate-200 text-slate-800 border border-slate-300 px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
-                          🥈 #2
+                          🥈 #2 Gral
                         </span>
                       ) : hist.posicionGeneral === 3 ? (
                         <span className="inline-flex items-center gap-1 bg-amber-900/10 text-amber-900 border border-amber-900/20 px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
-                          🥉 #3
+                          🥉 #3 Gral
                         </span>
                       ) : (
                         <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded text-xs font-bold">
                           #{hist.posicionGeneral}
+                        </span>
+                      )
+                    ) : (
+                      renderPendingBadge()
+                    )}
+                  </td>
+
+                  {/* Posición Sexo */}
+                  <td className="px-4 py-3.5 text-center">
+                    {hist.descalificado ? (
+                      <span className="text-slate-400 font-bold text-xs">-</span>
+                    ) : hist.posicionSexo != null && hist.posicionSexo > 0 ? (
+                      hist.posicionSexo === 1 ? (
+                        <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 border border-blue-300 px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
+                          🥇 1.º Sexo
+                        </span>
+                      ) : hist.posicionSexo === 2 ? (
+                        <span className="inline-flex items-center gap-1 bg-slate-200 text-slate-800 border border-slate-300 px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
+                          🥈 2.º Sexo
+                        </span>
+                      ) : hist.posicionSexo === 3 ? (
+                        <span className="inline-flex items-center gap-1 bg-amber-900/10 text-amber-900 border border-amber-900/20 px-2.5 py-0.5 rounded-full text-xs font-black shadow-2xs">
+                          🥉 3.º Sexo
+                        </span>
+                      ) : (
+                        <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded text-xs font-bold">
+                          #{hist.posicionSexo} Sexo
                         </span>
                       )
                     ) : (

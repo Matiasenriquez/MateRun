@@ -52,7 +52,7 @@ export const getRaceResults = async (req: Request, res: Response): Promise<void>
       carrera: raceId,
       estado: { $ne: 'Baja' },
     })
-      .populate('corredor', 'nombre apellido dni email fotoPerfil')
+      .populate('corredor', 'nombre apellido dni email fotoPerfil sexo')
       .sort({ dorsal: 1 });
 
     // Buscar el resumen de resultados guardado para esta distancia
@@ -131,15 +131,17 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
 
     const targetDistancia = Number(distancia) || (race.distancias && race.distancias[0]) || 10;
 
-    // 2. Normalizar Clasificación General (1.º, 2.º y 3.º puestos)
+    // 2. Normalizar Clasificación General (1.º, 2.º y 3.º puestos discriminados por sexo)
     const normalizedGeneral = Array.isArray(clasificacionGeneral)
       ? clasificacionGeneral.map((entry: any) => {
           const segs = entry.tiempoSegundos !== undefined && entry.tiempoSegundos !== null
             ? Number(entry.tiempoSegundos)
             : parseTimeToSeconds(entry.tiempo || '');
           const formatted = segs > 0 ? formatSecondsToTime(segs) : entry.tiempo || '';
+          const sexoNorm = entry.sexo === 'Femenino' ? 'Femenino' : 'Masculino';
           return {
             posicion: Number(entry.posicion),
+            sexo: sexoNorm,
             corredor: entry.corredor,
             registrationId: entry.registrationId,
             dorsal: Number(entry.dorsal) || undefined,
@@ -150,16 +152,18 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         })
       : [];
 
-    // 3. Normalizar Ganadores por Categoría de Edad (1.º, 2.º y 3.º puestos)
+    // 3. Normalizar Ganadores por Categoría de Edad (1.º, 2.º y 3.º puestos discriminados por sexo)
     const normalizedCategorias = Array.isArray(ganadoresCategorias)
       ? ganadoresCategorias.map((entry: any) => {
           const segs = entry.tiempoSegundos !== undefined && entry.tiempoSegundos !== null
             ? Number(entry.tiempoSegundos)
             : parseTimeToSeconds(entry.tiempo || '');
           const formatted = segs > 0 ? formatSecondsToTime(segs) : entry.tiempo || '';
+          const sexoNorm = entry.sexo === 'Femenino' ? 'Femenino' : 'Masculino';
           return {
             categoria: String(entry.categoria || '').trim(),
             posicion: Number(entry.posicion) || 1,
+            sexo: sexoNorm,
             corredor: entry.corredor,
             registrationId: entry.registrationId,
             dorsal: Number(entry.dorsal) || undefined,
@@ -201,6 +205,7 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
             dorsal: Number(entry.dorsal) || undefined,
             nombre: entry.nombre || '',
             categoria: entry.categoria || '',
+            sexo: entry.sexo || '',
             distancia: targetDistancia,
             tiempo: formatted,
             tiempoSegundos: segs,
@@ -213,6 +218,11 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
               ? null
               : entry.posicionCategoria !== undefined
               ? entry.posicionCategoria
+              : null,
+            posicionSexo: isDescalificado
+              ? null
+              : entry.posicionSexo !== undefined
+              ? entry.posicionSexo
               : null,
             descalificado: isDescalificado,
           };
@@ -242,12 +252,14 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         tiempoSegundos: number | null;
         posicionGeneral: number | null;
         posicionCategoria: number | null;
+        posicionSexo: number | null;
         categoria?: string | null;
+        sexo?: string | null;
         descalificado?: boolean;
       }
     >();
 
-    // Integrar podio general
+    // Integrar podio general discriminado por sexo
     for (const g of normalizedGeneral) {
       if (!g.corredor) continue;
       const cId = String(g.corredor);
@@ -255,12 +267,14 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         corredorId: cId,
         tiempoSegundos: g.tiempoSegundos && g.tiempoSegundos > 0 ? g.tiempoSegundos : null,
         posicionGeneral: g.posicion,
+        posicionSexo: g.posicion,
         posicionCategoria: null,
+        sexo: g.sexo,
         descalificado: false,
       });
     }
 
-    // Integrar ganadores por categoría
+    // Integrar ganadores por categoría discriminados por sexo
     for (const cat of normalizedCategorias) {
       if (!cat.corredor) continue;
       const cId = String(cat.corredor);
@@ -268,7 +282,9 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         corredorId: cId,
         tiempoSegundos: null,
         posicionGeneral: null,
+        posicionSexo: null,
         posicionCategoria: null,
+        sexo: cat.sexo,
         descalificado: false,
       };
 
@@ -278,6 +294,7 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
           cat.tiempoSegundos && cat.tiempoSegundos > 0 ? cat.tiempoSegundos : prev.tiempoSegundos,
         posicionCategoria: Number(cat.posicion) || 1, // Es 1.º, 2.º o 3.º puesto de su categoría
         categoria: cat.categoria,
+        sexo: cat.sexo || prev.sexo,
       });
     }
 
@@ -301,6 +318,12 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         ? prev.posicionGeneral
         : t.posicionGeneral;
 
+      const finalPosSexo = isDescalificado
+        ? null
+        : prev?.posicionSexo !== null && prev?.posicionSexo !== undefined
+        ? prev.posicionSexo
+        : t.posicionSexo;
+
       const finalPosCategoria = isDescalificado
         ? null
         : prev?.posicionCategoria !== null && prev?.posicionCategoria !== undefined
@@ -311,8 +334,10 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
         corredorId: cId,
         tiempoSegundos: finalTiempoSegundos,
         posicionGeneral: finalPosGeneral ?? null,
+        posicionSexo: finalPosSexo ?? null,
         posicionCategoria: finalPosCategoria ?? null,
         categoria: t.categoria || prev?.categoria || null,
+        sexo: t.sexo || prev?.sexo || null,
         descalificado: isDescalificado,
       });
     }
@@ -332,8 +357,10 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
             corredorId: cId,
             tiempoSegundos: null,
             posicionGeneral: null,
+            posicionSexo: null,
             posicionCategoria: null,
             categoria: reg.categoria || null,
+            sexo: reg.datosCorredor?.sexo || null,
             descalificado: false,
           });
         }
@@ -356,6 +383,7 @@ export const saveRaceResults = async (req: Request, res: Response): Promise<void
           distancia: targetDistancia,
           tiempoSegundos: resData.tiempoSegundos,
           posicionGeneral: resData.posicionGeneral,
+          posicionSexo: resData.posicionSexo,
           posicionCategoria: resData.posicionCategoria,
           categoria: resData.categoria,
           descalificado: Boolean(resData.descalificado),

@@ -13,6 +13,7 @@ import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IPodiumEntry {
   posicion: number; // 1, 2, 3
+  sexo?: 'Masculino' | 'Femenino';
   corredor: Types.ObjectId; // User._id
   registrationId?: Types.ObjectId;
   dorsal?: number;
@@ -24,6 +25,7 @@ export interface IPodiumEntry {
 export interface ICategoryWinnerEntry {
   categoria: string;
   posicion?: number; // 1, 2, 3
+  sexo?: 'Masculino' | 'Femenino';
   corredor: Types.ObjectId; // User._id
   registrationId?: Types.ObjectId;
   dorsal?: number;
@@ -38,11 +40,13 @@ export interface IRunnerTimeEntry {
   dorsal?: number;
   nombre?: string;
   categoria?: string;
+  sexo?: string;
   distancia?: number;
   tiempo?: string; // HH:MM:SS
   tiempoSegundos?: number;
   posicionGeneral?: number | null;
   posicionCategoria?: number | null;
+  posicionSexo?: number | null;
   descalificado?: boolean;
 }
 
@@ -61,6 +65,7 @@ export interface IRaceResultsSummary extends Document {
 const PodiumEntrySchema = new Schema<IPodiumEntry>(
   {
     posicion: { type: Number, required: true },
+    sexo: { type: String, enum: ['Masculino', 'Femenino'], default: 'Masculino' },
     corredor: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     registrationId: { type: Schema.Types.ObjectId, ref: 'Registration' },
     dorsal: { type: Number },
@@ -75,6 +80,7 @@ const CategoryWinnerEntrySchema = new Schema<ICategoryWinnerEntry>(
   {
     categoria: { type: String, required: true, trim: true },
     posicion: { type: Number, default: 1 },
+    sexo: { type: String, enum: ['Masculino', 'Femenino'], default: 'Masculino' },
     corredor: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     registrationId: { type: Schema.Types.ObjectId, ref: 'Registration' },
     dorsal: { type: Number },
@@ -92,11 +98,13 @@ const RunnerTimeEntrySchema = new Schema<IRunnerTimeEntry>(
     dorsal: { type: Number },
     nombre: { type: String, trim: true },
     categoria: { type: String, trim: true },
+    sexo: { type: String, trim: true },
     distancia: { type: Number },
     tiempo: { type: String, trim: true },
     tiempoSegundos: { type: Number },
     posicionGeneral: { type: Number, default: null },
     posicionCategoria: { type: Number, default: null },
+    posicionSexo: { type: Number, default: null },
     descalificado: { type: Boolean, default: false },
   },
   { _id: false }

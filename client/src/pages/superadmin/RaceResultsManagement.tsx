@@ -39,6 +39,8 @@ import {
   Ban
 } from 'lucide-react';
 
+export type SexType = 'Masculino' | 'Femenino';
+
 interface RegistrationItem {
   _id: string;
   corredor: {
@@ -48,6 +50,7 @@ interface RegistrationItem {
     dni: string;
     email: string;
     fotoPerfil?: string;
+    sexo?: string;
   };
   dorsal: number;
   distancia: number;
@@ -57,11 +60,13 @@ interface RegistrationItem {
     nombre: string;
     apellido: string;
     dni: string;
+    sexo?: string;
   };
 }
 
 interface PodiumPosition {
   posicion: number;
+  sexo: SexType;
   corredorId: string;
   registrationId?: string;
   dorsal?: number;
@@ -72,12 +77,23 @@ interface PodiumPosition {
 interface CategoryPodiumPosition {
   categoria: string;
   posicion: number; // 1, 2, 3
+  sexo: SexType;
   corredorId: string;
   registrationId?: string;
   dorsal?: number;
   nombre?: string;
   tiempo: string;
 }
+
+/**
+ * Helper: Determina de forma normalizada el sexo del corredor ('Masculino' o 'Femenino')
+ */
+export const getRunnerSex = (r: RegistrationItem): SexType => {
+  const s = r.datosCorredor?.sexo || r.corredor?.sexo || '';
+  const norm = String(s).toLowerCase();
+  if (norm.includes('fem') || norm === 'mujer') return 'Femenino';
+  return 'Masculino';
+};
 
 export const RaceResultsManagement: React.FC = () => {
   const { raceId } = useParams<{ raceId: string }>();
@@ -87,6 +103,8 @@ export const RaceResultsManagement: React.FC = () => {
   const [race, setRace] = useState<Race | null>(null);
   const [registrations, setRegistrations] = useState<RegistrationItem[]>([]);
   const [selectedDistance, setSelectedDistance] = useState<number>(10);
+  const [selectedSex, setSelectedSex] = useState<SexType>('Masculino');
+  const [tableSexFilter, setTableSexFilter] = useState<'Todos' | SexType>('Todos');
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
@@ -94,15 +112,27 @@ export const RaceResultsManagement: React.FC = () => {
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
-  // Clasificación General (1.º, 2.º y 3.º puestos)
-  const [podium, setPodium] = useState<PodiumPosition[]>([
-    { posicion: 1, corredorId: '', tiempo: '' },
-    { posicion: 2, corredorId: '', tiempo: '' },
-    { posicion: 3, corredorId: '', tiempo: '' },
-  ]);
+  // Clasificación General (1.º, 2.º y 3.º puestos discriminados por sexo)
+  const [podium, setPodium] = useState<Record<SexType, PodiumPosition[]>>({
+    Masculino: [
+      { posicion: 1, sexo: 'Masculino', corredorId: '', tiempo: '' },
+      { posicion: 2, sexo: 'Masculino', corredorId: '', tiempo: '' },
+      { posicion: 3, sexo: 'Masculino', corredorId: '', tiempo: '' },
+    ],
+    Femenino: [
+      { posicion: 1, sexo: 'Femenino', corredorId: '', tiempo: '' },
+      { posicion: 2, sexo: 'Femenino', corredorId: '', tiempo: '' },
+      { posicion: 3, sexo: 'Femenino', corredorId: '', tiempo: '' },
+    ],
+  });
 
-  // Ganadores por Categoría de Edad: mapa categoria -> 3 puestos (1.º, 2.º y 3.º)
-  const [categoryWinners, setCategoryWinners] = useState<Record<string, CategoryPodiumPosition[]>>({});
+  // Ganadores por Categoría de Edad: mapa sexo -> categoria -> 3 puestos (1.º, 2.º y 3.º)
+  const [categoryWinners, setCategoryWinners] = useState<
+    Record<SexType, Record<string, CategoryPodiumPosition[]>>
+  >({
+    Masculino: {},
+    Femenino: {},
+  });
 
   // Tiempos individuales de corredores: mapa registrationId -> tiempo string (HH:MM:SS)
   const [runnerTimes, setRunnerTimes] = useState<Record<string, string>>({});
@@ -141,19 +171,36 @@ export const RaceResultsManagement: React.FC = () => {
       setRegistrations(regs);
       setSelectedDistance(currentDist);
 
-      // Cargar Clasificación General (1.º, 2.º, 3.º)
-      const initialPodium: PodiumPosition[] = [
-        { posicion: 1, corredorId: '', tiempo: '' },
-        { posicion: 2, corredorId: '', tiempo: '' },
-        { posicion: 3, corredorId: '', tiempo: '' },
-      ];
+      // Cargar Clasificación General (1.º, 2.º, 3.º por cada sexo)
+      const initialPodium: Record<SexType, PodiumPosition[]> = {
+        Masculino: [
+          { posicion: 1, sexo: 'Masculino', corredorId: '', tiempo: '' },
+          { posicion: 2, sexo: 'Masculino', corredorId: '', tiempo: '' },
+          { posicion: 3, sexo: 'Masculino', corredorId: '', tiempo: '' },
+        ],
+        Femenino: [
+          { posicion: 1, sexo: 'Femenino', corredorId: '', tiempo: '' },
+          { posicion: 2, sexo: 'Femenino', corredorId: '', tiempo: '' },
+          { posicion: 3, sexo: 'Femenino', corredorId: '', tiempo: '' },
+        ],
+      };
 
       if (existingResults?.clasificacionGeneral && Array.isArray(existingResults.clasificacionGeneral)) {
         for (const p of existingResults.clasificacionGeneral) {
-          const idx = initialPodium.findIndex((pos) => pos.posicion === p.posicion);
+          const pReg = regs.find(
+            (r) => String(r._id) === String(p.registrationId) || String(r.corredor?._id) === String(p.corredor)
+          );
+          const pSex: SexType =
+            p.sexo === 'Femenino' || p.sexo === 'Mujer' || (pReg && getRunnerSex(pReg) === 'Femenino')
+              ? 'Femenino'
+              : 'Masculino';
+
+          const targetList = initialPodium[pSex];
+          const idx = targetList.findIndex((pos) => pos.posicion === p.posicion);
           if (idx !== -1) {
-            initialPodium[idx] = {
+            targetList[idx] = {
               posicion: p.posicion,
+              sexo: pSex,
               corredorId: p.corredor ? String(p.corredor) : '',
               registrationId: p.registrationId ? String(p.registrationId) : undefined,
               dorsal: p.dorsal,
@@ -165,21 +212,37 @@ export const RaceResultsManagement: React.FC = () => {
       }
       setPodium(initialPodium);
 
-      // Cargar Ganadores por Categoría (1.º, 2.º y 3.º puestos por categoría)
-      const catMap: Record<string, CategoryPodiumPosition[]> = {};
+      // Cargar Ganadores por Categoría (1.º, 2.º y 3.º por categoría y por sexo)
+      const catMap: Record<SexType, Record<string, CategoryPodiumPosition[]>> = {
+        Masculino: {},
+        Femenino: {},
+      };
       const configuredCategories = raceData.categorias || [];
 
       for (const cat of configuredCategories) {
-        catMap[cat.nombre] = [
-          { categoria: cat.nombre, posicion: 1, corredorId: '', tiempo: '' },
-          { categoria: cat.nombre, posicion: 2, corredorId: '', tiempo: '' },
-          { categoria: cat.nombre, posicion: 3, corredorId: '', tiempo: '' },
+        catMap.Masculino[cat.nombre] = [
+          { categoria: cat.nombre, posicion: 1, sexo: 'Masculino', corredorId: '', tiempo: '' },
+          { categoria: cat.nombre, posicion: 2, sexo: 'Masculino', corredorId: '', tiempo: '' },
+          { categoria: cat.nombre, posicion: 3, sexo: 'Masculino', corredorId: '', tiempo: '' },
+        ];
+        catMap.Femenino[cat.nombre] = [
+          { categoria: cat.nombre, posicion: 1, sexo: 'Femenino', corredorId: '', tiempo: '' },
+          { categoria: cat.nombre, posicion: 2, sexo: 'Femenino', corredorId: '', tiempo: '' },
+          { categoria: cat.nombre, posicion: 3, sexo: 'Femenino', corredorId: '', tiempo: '' },
         ];
       }
 
       if (existingResults?.ganadoresCategorias && Array.isArray(existingResults.ganadoresCategorias)) {
         for (const gw of existingResults.ganadoresCategorias) {
-          const list = catMap[gw.categoria];
+          const gwReg = regs.find(
+            (r) => String(r._id) === String(gw.registrationId) || String(r.corredor?._id) === String(gw.corredor)
+          );
+          const gwSex: SexType =
+            gw.sexo === 'Femenino' || gw.sexo === 'Mujer' || (gwReg && getRunnerSex(gwReg) === 'Femenino')
+              ? 'Femenino'
+              : 'Masculino';
+
+          const list = catMap[gwSex]?.[gw.categoria];
           if (list) {
             const pos = Number(gw.posicion) || 1;
             const targetIdx = list.findIndex((p) => p.posicion === pos);
@@ -187,6 +250,7 @@ export const RaceResultsManagement: React.FC = () => {
               list[targetIdx] = {
                 categoria: gw.categoria,
                 posicion: pos,
+                sexo: gwSex,
                 corredorId: gw.corredor ? String(gw.corredor) : '',
                 registrationId: gw.registrationId ? String(gw.registrationId) : undefined,
                 dorsal: gw.dorsal,
@@ -261,28 +325,40 @@ export const RaceResultsManagement: React.FC = () => {
   }, [registrations, selectedDistance]);
 
   /**
-   * Corredores filtrados por el buscador
+   * Corredores de la distancia que coinciden con el sexo seleccionado para premiación
+   */
+  const runnersForDistanceAndSex = useMemo(() => {
+    return runnersForDistance.filter((r) => getRunnerSex(r) === selectedSex);
+  }, [runnersForDistance, selectedSex]);
+
+  /**
+   * Corredores filtrados por el buscador y filtro de sexo en la nómina
    */
   const filteredRunners = useMemo(() => {
+    let list = runnersForDistance;
+    if (tableSexFilter !== 'Todos') {
+      list = list.filter((r) => getRunnerSex(r) === tableSexFilter);
+    }
     const term = searchTerm.toLowerCase().trim();
-    if (!term) return runnersForDistance;
+    if (!term) return list;
 
-    return runnersForDistance.filter((r) => {
+    return list.filter((r) => {
       const nombre = `${r.datosCorredor?.nombre || ''} ${r.datosCorredor?.apellido || ''}`.toLowerCase();
       const dni = String(r.datosCorredor?.dni || '').toLowerCase();
       const dorsal = String(r.dorsal || '');
       return nombre.includes(term) || dni.includes(term) || dorsal.includes(term);
     });
-  }, [runnersForDistance, searchTerm]);
+  }, [runnersForDistance, tableSexFilter, searchTerm]);
 
   /**
-   * Helper: Asigna un corredor a una posición del podio (1.º, 2.º o 3.º)
+   * Helper: Asigna un corredor a una posición del podio (1.º, 2.º o 3.º) del sexo seleccionado
    */
   const handleSelectPodiumRunner = (pos: number, regId: string) => {
-    const selectedReg = runnersForDistance.find((r) => r._id === regId);
+    const selectedReg = runnersForDistanceAndSex.find((r) => r._id === regId);
 
-    setPodium((prev) =>
-      prev.map((item) => {
+    setPodium((prev) => {
+      const list = prev[selectedSex] || [];
+      const updatedList = list.map((item) => {
         if (item.posicion === pos) {
           if (!regId) {
             return { ...item, corredorId: '', registrationId: undefined, dorsal: undefined, nombre: '' };
@@ -290,6 +366,7 @@ export const RaceResultsManagement: React.FC = () => {
           const regTime = runnerTimes[regId] || item.tiempo || '';
           return {
             ...item,
+            sexo: selectedSex,
             corredorId: selectedReg?.corredor?._id || '',
             registrationId: regId,
             dorsal: selectedReg?.dorsal,
@@ -298,12 +375,17 @@ export const RaceResultsManagement: React.FC = () => {
           };
         }
         return item;
-      })
-    );
+      });
+
+      return {
+        ...prev,
+        [selectedSex]: updatedList,
+      };
+    });
 
     // Si el corredor ya tiene un tiempo en el podio y no en la tabla, sincronizar
     if (regId && !runnerTimes[regId]) {
-      const existingPodiumTime = podium.find((p) => p.posicion === pos)?.tiempo;
+      const existingPodiumTime = podium[selectedSex]?.find((p) => p.posicion === pos)?.tiempo;
       if (existingPodiumTime) {
         setRunnerTimes((prev) => ({ ...prev, [regId]: existingPodiumTime }));
       }
@@ -311,20 +393,26 @@ export const RaceResultsManagement: React.FC = () => {
   };
 
   /**
-   * Helper: Modifica el tiempo de una posición del podio
+   * Helper: Modifica el tiempo de una posición del podio del sexo seleccionado
    */
   const handlePodiumTimeChange = (pos: number, timeVal: string) => {
-    setPodium((prev) =>
-      prev.map((item) => {
+    setPodium((prev) => {
+      const list = prev[selectedSex] || [];
+      const updatedList = list.map((item) => {
         if (item.posicion === pos) {
           return { ...item, tiempo: timeVal };
         }
         return item;
-      })
-    );
+      });
+
+      return {
+        ...prev,
+        [selectedSex]: updatedList,
+      };
+    });
 
     // Sincronizar con el mapa de tiempos si el corredor está seleccionado
-    const currentItem = podium.find((p) => p.posicion === pos);
+    const currentItem = podium[selectedSex]?.find((p) => p.posicion === pos);
     if (currentItem?.registrationId) {
       setRunnerTimes((prev) => ({
         ...prev,
@@ -334,16 +422,17 @@ export const RaceResultsManagement: React.FC = () => {
   };
 
   /**
-   * Helper: Asigna un corredor a un puesto de una categoría de edad (1.º, 2.º o 3.º)
+   * Helper: Asigna un corredor a un puesto de una categoría de edad (1.º, 2.º o 3.º) del sexo seleccionado
    */
   const handleSelectCategoryWinner = (catName: string, pos: number, regId: string) => {
-    const selectedReg = runnersForDistance.find((r) => r._id === regId);
+    const selectedReg = runnersForDistanceAndSex.find((r) => r._id === regId);
 
     setCategoryWinners((prev) => {
-      const currentList = prev[catName] || [
-        { categoria: catName, posicion: 1, corredorId: '', tiempo: '' },
-        { categoria: catName, posicion: 2, corredorId: '', tiempo: '' },
-        { categoria: catName, posicion: 3, corredorId: '', tiempo: '' },
+      const sexMap = prev[selectedSex] || {};
+      const currentList = sexMap[catName] || [
+        { categoria: catName, posicion: 1, sexo: selectedSex, corredorId: '', tiempo: '' },
+        { categoria: catName, posicion: 2, sexo: selectedSex, corredorId: '', tiempo: '' },
+        { categoria: catName, posicion: 3, sexo: selectedSex, corredorId: '', tiempo: '' },
       ];
 
       const updatedList = currentList.map((item) => {
@@ -354,6 +443,7 @@ export const RaceResultsManagement: React.FC = () => {
           const regTime = runnerTimes[regId] || item.tiempo || '';
           return {
             ...item,
+            sexo: selectedSex,
             corredorId: selectedReg?.corredor?._id || '',
             registrationId: regId,
             dorsal: selectedReg?.dorsal,
@@ -366,12 +456,15 @@ export const RaceResultsManagement: React.FC = () => {
 
       return {
         ...prev,
-        [catName]: updatedList,
+        [selectedSex]: {
+          ...sexMap,
+          [catName]: updatedList,
+        },
       };
     });
 
     if (regId && !runnerTimes[regId]) {
-      const existingTime = categoryWinners[catName]?.find((p) => p.posicion === pos)?.tiempo;
+      const existingTime = categoryWinners[selectedSex]?.[catName]?.find((p) => p.posicion === pos)?.tiempo;
       if (existingTime) {
         setRunnerTimes((prev) => ({ ...prev, [regId]: existingTime }));
       }
@@ -379,24 +472,29 @@ export const RaceResultsManagement: React.FC = () => {
   };
 
   /**
-   * Helper: Modifica el tiempo de un puesto de categoría de edad
+   * Helper: Modifica el tiempo de un puesto de categoría de edad del sexo seleccionado
    */
   const handleCategoryWinnerTimeChange = (catName: string, pos: number, timeVal: string) => {
     setCategoryWinners((prev) => {
-      const currentList = prev[catName] || [];
+      const sexMap = prev[selectedSex] || {};
+      const currentList = sexMap[catName] || [];
       const updatedList = currentList.map((item) => {
         if (item.posicion === pos) {
           return { ...item, tiempo: timeVal };
         }
         return item;
       });
+
       return {
         ...prev,
-        [catName]: updatedList,
+        [selectedSex]: {
+          ...sexMap,
+          [catName]: updatedList,
+        },
       };
     });
 
-    const currentWinner = categoryWinners[catName]?.find((p) => p.posicion === pos);
+    const currentWinner = categoryWinners[selectedSex]?.[catName]?.find((p) => p.posicion === pos);
     if (currentWinner?.registrationId) {
       setRunnerTimes((prev) => ({
         ...prev,
@@ -414,30 +512,30 @@ export const RaceResultsManagement: React.FC = () => {
       [regId]: timeVal,
     }));
 
-    // Sincronizar con podio si el corredor está en el podio general
-    setPodium((prev) =>
-      prev.map((item) => {
-        if (item.registrationId === regId) {
-          return { ...item, tiempo: timeVal };
-        }
-        return item;
-      })
-    );
-
-    // Sincronizar con ganadores de categoría si tiene un puesto asignado
-    setCategoryWinners((prev) => {
-      const copy = { ...prev };
-      let changed = false;
-      for (const catKey of Object.keys(copy)) {
-        copy[catKey] = copy[catKey].map((p) => {
-          if (p.registrationId === regId) {
-            changed = true;
-            return { ...p, tiempo: timeVal };
-          }
-          return p;
-        });
+    // Sincronizar con podio en ambos sexos
+    setPodium((prev) => {
+      const next = { ...prev };
+      for (const s of ['Masculino', 'Femenino'] as SexType[]) {
+        next[s] = next[s].map((item) =>
+          item.registrationId === regId ? { ...item, tiempo: timeVal } : item
+        );
       }
-      return changed ? copy : prev;
+      return next;
+    });
+
+    // Sincronizar con ganadores de categoría en ambos sexos
+    setCategoryWinners((prev) => {
+      const next = { ...prev };
+      for (const s of ['Masculino', 'Femenino'] as SexType[]) {
+        const sMap = { ...next[s] };
+        for (const catKey of Object.keys(sMap)) {
+          sMap[catKey] = sMap[catKey].map((p) =>
+            p.registrationId === regId ? { ...p, tiempo: timeVal } : p
+          );
+        }
+        next[s] = sMap;
+      }
+      return next;
     });
   };
 
@@ -451,24 +549,32 @@ export const RaceResultsManagement: React.FC = () => {
 
       // Si se descalifica al corredor, también removerlo del podio y de ganadores de categoría si estaba asignado
       if (nextState) {
-        setPodium((prevPod) =>
-          prevPod.map((p) =>
-            p.registrationId === regId
-              ? { ...p, corredorId: '', registrationId: undefined, dorsal: undefined, nombre: '', tiempo: '' }
-              : p
-          )
-        );
-
-        setCategoryWinners((prevCatWinners) => {
-          const updated = { ...prevCatWinners };
-          for (const catKey of Object.keys(updated)) {
-            updated[catKey] = updated[catKey].map((p) =>
+        setPodium((prevPod) => {
+          const next = { ...prevPod };
+          for (const s of ['Masculino', 'Femenino'] as SexType[]) {
+            next[s] = next[s].map((p) =>
               p.registrationId === regId
                 ? { ...p, corredorId: '', registrationId: undefined, dorsal: undefined, nombre: '', tiempo: '' }
                 : p
             );
           }
-          return updated;
+          return next;
+        });
+
+        setCategoryWinners((prevCatWinners) => {
+          const next = { ...prevCatWinners };
+          for (const s of ['Masculino', 'Femenino'] as SexType[]) {
+            const sMap = { ...next[s] };
+            for (const catKey of Object.keys(sMap)) {
+              sMap[catKey] = sMap[catKey].map((p) =>
+                p.registrationId === regId
+                  ? { ...p, corredorId: '', registrationId: undefined, dorsal: undefined, nombre: '', tiempo: '' }
+                  : p
+              );
+            }
+            next[s] = sMap;
+          }
+          return next;
         });
       }
 
@@ -490,45 +596,61 @@ export const RaceResultsManagement: React.FC = () => {
       setErrorNotice(null);
       setSuccessNotice(null);
 
-      // Preparar payload de podio general
-      const clasificacionGeneralPayload = podium
-        .filter((p) => p.corredorId && !disqualifiedRunners[p.registrationId || ''])
-        .map((p) => ({
-          posicion: p.posicion,
-          corredor: p.corredorId,
-          registrationId: p.registrationId,
-          dorsal: p.dorsal,
-          nombre: p.nombre,
-          tiempo: p.tiempo.trim(),
-        }));
+      // Preparar payload de podio general de ambos sexos
+      const clasificacionGeneralPayload: any[] = [];
+      for (const s of ['Masculino', 'Femenino'] as SexType[]) {
+        for (const p of podium[s]) {
+          if (p.corredorId && !disqualifiedRunners[p.registrationId || '']) {
+            clasificacionGeneralPayload.push({
+              posicion: p.posicion,
+              sexo: p.sexo,
+              corredor: p.corredorId,
+              registrationId: p.registrationId,
+              dorsal: p.dorsal,
+              nombre: p.nombre,
+              tiempo: p.tiempo.trim(),
+            });
+          }
+        }
+      }
 
-      // Preparar payload de ganadores por categoría (1.º, 2.º y 3.º puestos)
-      const ganadoresCategoriasPayload = Object.values(categoryWinners)
-        .flat()
-        .filter((gw) => gw.corredorId && !disqualifiedRunners[gw.registrationId || ''])
-        .map((gw) => ({
-          categoria: gw.categoria,
-          posicion: gw.posicion,
-          corredor: gw.corredorId,
-          registrationId: gw.registrationId,
-          dorsal: gw.dorsal,
-          nombre: gw.nombre,
-          tiempo: gw.tiempo.trim(),
-        }));
+      // Preparar payload de ganadores por categoría de ambos sexos
+      const ganadoresCategoriasPayload: any[] = [];
+      for (const s of ['Masculino', 'Femenino'] as SexType[]) {
+        for (const positions of Object.values(categoryWinners[s] || {})) {
+          for (const gw of positions) {
+            if (gw.corredorId && !disqualifiedRunners[gw.registrationId || '']) {
+              ganadoresCategoriasPayload.push({
+                categoria: gw.categoria,
+                posicion: gw.posicion,
+                sexo: gw.sexo,
+                corredor: gw.corredorId,
+                registrationId: gw.registrationId,
+                dorsal: gw.dorsal,
+                nombre: gw.nombre,
+                tiempo: gw.tiempo.trim(),
+              });
+            }
+          }
+        }
+      }
 
       // Preparar payload de tiempos de todos los corredores
       const tiemposCorredoresPayload = runnersForDistance.map((reg) => {
         const isDq = Boolean(disqualifiedRunners[reg._id]);
         const timeStr = runnerTimes[reg._id] || '';
+        const runnerSex = getRunnerSex(reg);
 
-        // Verificar si tiene posición en el podio general (si no está descalificado)
-        const podEntry = isDq ? null : podium.find((p) => p.registrationId === reg._id);
+        // Verificar si tiene posición en el podio general de su sexo
+        const podEntry = isDq ? null : podium[runnerSex]?.find((p) => p.registrationId === reg._id && p.corredorId);
         const posGen = podEntry ? podEntry.posicion : null;
+        const posSexo = podEntry ? podEntry.posicion : null;
 
-        // Verificar si tiene posición en su categoría de edad (1.º, 2.º o 3.º puesto)
+        // Verificar si tiene posición en su categoría de edad de su sexo
         let posCat: number | null = null;
         if (!isDq) {
-          for (const positions of Object.values(categoryWinners)) {
+          const catMapForSex = categoryWinners[runnerSex] || {};
+          for (const positions of Object.values(catMapForSex)) {
             const match = positions.find((p) => p.registrationId === reg._id && p.corredorId);
             if (match) {
               posCat = match.posicion;
@@ -543,9 +665,11 @@ export const RaceResultsManagement: React.FC = () => {
           dorsal: reg.dorsal,
           nombre: `${reg.datosCorredor?.nombre || ''} ${reg.datosCorredor?.apellido || ''}`.trim(),
           categoria: reg.categoria || '',
+          sexo: runnerSex,
           distancia: selectedDistance,
           tiempo: isDq ? 'Descalificado' : timeStr.trim(),
           posicionGeneral: posGen,
+          posicionSexo: posSexo,
           posicionCategoria: posCat,
           descalificado: isDq,
         };
@@ -562,7 +686,7 @@ export const RaceResultsManagement: React.FC = () => {
       const res = await api.post(`/results/race/${raceId}`, payload);
 
       setSuccessNotice(
-        `¡Resultados oficiales de ${selectedDistance}k guardados exitosamente! Los corredores ya pueden consultar su rendimiento en "Mis Datos".`
+        `¡Resultados oficiales y premiación de ${selectedDistance}k guardados exitosamente! Los corredores ya pueden consultar su rendimiento en "Mis Datos".`
       );
       if (res.data.race) {
         setRace(res.data.race);
@@ -814,7 +938,55 @@ export const RaceResultsManagement: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* 3. CLASIFICACIÓN GENERAL (PODIO 1.º, 2.º Y 3.º PUESTOS)                   */}
+      {/* SECCIÓN: PREMIACIÓN POR SEXO                                              */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-machine" />
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+              Premiación por sexo
+            </h3>
+          </div>
+          <p className="text-[11px] text-slate-500 font-medium">
+            Selecciona el sexo para gestionar los ganadores de la clasificación general y categorías de edad en {selectedDistance}k.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          {(['Masculino', 'Femenino'] as SexType[]).map((sex) => {
+            const count = runnersForDistance.filter((r) => getRunnerSex(r) === sex).length;
+            const isSelected = selectedSex === sex;
+            return (
+              <button
+                key={sex}
+                type="button"
+                onClick={() => setSelectedSex(sex)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
+                  isSelected
+                    ? sex === 'Masculino'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-500/20'
+                      : 'bg-rose-600 text-white border-rose-600 shadow-sm ring-2 ring-rose-500/20'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span className="text-sm">{sex === 'Masculino' ? '👨' : '👩'}</span>
+                <span>{sex}</span>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {count} inscriptos
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 3. CLASIFICACIÓN GENERAL (PODIO 1.º, 2.º Y 3.º PUESTOS POR SEXO)          */}
       {/* ========================================================================= */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -823,11 +995,22 @@ export const RaceResultsManagement: React.FC = () => {
               <Trophy className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-800 uppercase tracking-wide">
-                Clasificación General — {selectedDistance}k
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black text-slate-800 uppercase tracking-wide">
+                  Clasificación General — Rama {selectedSex} ({selectedDistance}k)
+                </h2>
+                <span
+                  className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${
+                    selectedSex === 'Masculino'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}
+                >
+                  {selectedSex}
+                </span>
+              </div>
               <p className="text-xs text-slate-500">
-                Selecciona a los corredores que obtuvieron los tres primeros puestos y carga su tiempo oficial.
+                Selecciona a los corredores {selectedSex === 'Masculino' ? 'masculinos' : 'femeninos'} que obtuvieron los tres primeros puestos y carga su tiempo oficial.
               </p>
             </div>
           </div>
@@ -835,7 +1018,7 @@ export const RaceResultsManagement: React.FC = () => {
 
         {/* 3 Tarjetas de Podio */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {podium.map((pod) => {
+          {(podium[selectedSex] || []).map((pod) => {
             const isFirst = pod.posicion === 1;
             const isSecond = pod.posicion === 2;
 
@@ -853,11 +1036,11 @@ export const RaceResultsManagement: React.FC = () => {
                 {/* Cabecera del puesto */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-2xl">
+                    <span className="text-2xl select-none leading-none">
                       {isFirst ? '🥇' : isSecond ? '🥈' : '🥉'}
                     </span>
                     <span className="font-black text-sm uppercase tracking-wider text-slate-800">
-                      {pod.posicion}.º Puesto General
+                      {pod.posicion}.º Puesto {selectedSex}
                     </span>
                   </div>
 
@@ -865,7 +1048,7 @@ export const RaceResultsManagement: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleSelectPodiumRunner(pod.posicion, '')}
-                      className="text-[11px] font-bold text-slate-400 hover:text-rose-600 transition-colors"
+                      className="text-[11px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                       title="Quitar corredor del puesto"
                     >
                       Limpiar
@@ -876,20 +1059,23 @@ export const RaceResultsManagement: React.FC = () => {
                 {/* Selector de Corredor */}
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Corredor Ganador
+                    Corredor Ganador ({selectedSex})
                   </label>
                   <select
                     value={pod.registrationId || ''}
                     onChange={(e) => handleSelectPodiumRunner(pod.posicion, e.target.value)}
                     className="w-full px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine cursor-pointer transition-all"
                   >
-                    <option value="">-- Seleccionar Corredor --</option>
-                    {runnersForDistance.map((r) => {
+                    <option value="">-- Seleccionar Corredor ({selectedSex}) --</option>
+                    {runnersForDistanceAndSex.map((r) => {
                       const isDq = Boolean(disqualifiedRunners[r._id]);
+                      const otherPodPos = (podium[selectedSex] || []).find(
+                        (p) => p.posicion !== pod.posicion && p.registrationId === r._id
+                      );
                       return (
-                        <option key={r._id} value={r._id} disabled={isDq}>
+                        <option key={r._id} value={r._id} disabled={isDq || Boolean(otherPodPos)}>
                           [Dorsal #{r.dorsal}] {r.datosCorredor?.nombre} {r.datosCorredor?.apellido}{' '}
-                          {isDq ? '(DESCALIFICADO)' : `(DNI ${r.datosCorredor?.dni})`}
+                          {isDq ? '(DESCALIFICADO)' : otherPodPos ? `(En ${otherPodPos.posicion}.º puesto)` : `(DNI ${r.datosCorredor?.dni})`}
                         </option>
                       );
                     })}
@@ -930,7 +1116,7 @@ export const RaceResultsManagement: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 4. GANADORES POR CATEGORÍA DE EDAD (1.º, 2.º Y 3.º PUESTOS)              */}
+      {/* 4. GANADORES POR CATEGORÍA DE EDAD (1.º, 2.º Y 3.º PUESTOS POR SEXO)      */}
       {/* ========================================================================= */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -939,11 +1125,22 @@ export const RaceResultsManagement: React.FC = () => {
               <Medal className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-black text-slate-800 uppercase tracking-wide">
-                Ganadores por Categoría de Edad — {selectedDistance}k
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black text-slate-800 uppercase tracking-wide">
+                  Ganadores por Categoría de Edad — Rama {selectedSex} ({selectedDistance}k)
+                </h2>
+                <span
+                  className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${
+                    selectedSex === 'Masculino'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  }`}
+                >
+                  {selectedSex}
+                </span>
+              </div>
               <p className="text-xs text-slate-500">
-                Registra los tres corredores ganadores (1.º, 2.º y 3.º puesto) con sus tiempos oficiales para cada categoría etaria configurada.
+                Registra los tres corredores ganadores {selectedSex === 'Masculino' ? 'masculinos' : 'femeninos'} (1.º, 2.º y 3.º puesto) con sus tiempos oficiales para cada categoría etaria configurada.
               </p>
             </div>
           </div>
@@ -960,15 +1157,18 @@ export const RaceResultsManagement: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {race.categorias.map((cat, idx) => {
-              const positions = categoryWinners[cat.nombre] || [
-                { categoria: cat.nombre, posicion: 1, corredorId: '', tiempo: '' },
-                { categoria: cat.nombre, posicion: 2, corredorId: '', tiempo: '' },
-                { categoria: cat.nombre, posicion: 3, corredorId: '', tiempo: '' },
+              const positions = categoryWinners[selectedSex]?.[cat.nombre] || [
+                { categoria: cat.nombre, posicion: 1, sexo: selectedSex, corredorId: '', tiempo: '' },
+                { categoria: cat.nombre, posicion: 2, sexo: selectedSex, corredorId: '', tiempo: '' },
+                { categoria: cat.nombre, posicion: 3, sexo: selectedSex, corredorId: '', tiempo: '' },
               ];
 
-              // Corredores que pertenecen a esta categoría
-              const runnersInCat = runnersForDistance.filter(
+              // Corredores que pertenecen a esta categoría y al sexo seleccionado
+              const runnersInCatAndSex = runnersForDistanceAndSex.filter(
                 (r) => r.categoria === cat.nombre
+              );
+              const otherRunnersInSex = runnersForDistanceAndSex.filter(
+                (r) => r.categoria !== cat.nombre
               );
 
               const assignedCount = positions.filter((p) => p.corredorId).length;
@@ -987,7 +1187,7 @@ export const RaceResultsManagement: React.FC = () => {
                         </h4>
                       </div>
                       <span className="text-[11px] text-slate-500 font-semibold mt-0.5 block">
-                        Rango: {cat.edadMinima} a {cat.edadMaxima} años • ({runnersInCat.length} inscriptos en {selectedDistance}k)
+                        Rango: {cat.edadMinima} a {cat.edadMaxima} años • ({runnersInCatAndSex.length} {selectedSex.toLowerCase()}s inscriptos)
                       </span>
                     </div>
 
@@ -1010,7 +1210,7 @@ export const RaceResultsManagement: React.FC = () => {
                       <thead className="bg-slate-100/90 text-slate-600 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
                         <tr>
                           <th className="px-3.5 py-2.5 w-24">Puesto</th>
-                          <th className="px-3.5 py-2.5">Corredor</th>
+                          <th className="px-3.5 py-2.5">Corredor ({selectedSex})</th>
                           <th className="px-3.5 py-2.5 w-36">Tiempo</th>
                         </tr>
                       </thead>
@@ -1041,10 +1241,10 @@ export const RaceResultsManagement: React.FC = () => {
                                     }
                                     className="w-full px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine cursor-pointer transition-all"
                                   >
-                                    <option value="">-- Seleccionar Corredor --</option>
-                                    {runnersInCat.length > 0 && (
-                                      <optgroup label="Corredores de la categoría">
-                                        {runnersInCat.map((r) => {
+                                    <option value="">-- Seleccionar Corredor ({selectedSex}) --</option>
+                                    {runnersInCatAndSex.length > 0 && (
+                                      <optgroup label={`Corredores ${selectedSex.toLowerCase()}s de la categoría`}>
+                                        {runnersInCatAndSex.map((r) => {
                                           const isDq = Boolean(disqualifiedRunners[r._id]);
                                           const otherPos = positions.find(
                                             (p) => p.posicion !== posItem.posicion && p.registrationId === r._id
@@ -1058,10 +1258,9 @@ export const RaceResultsManagement: React.FC = () => {
                                         })}
                                       </optgroup>
                                     )}
-                                    <optgroup label="Otros corredores de la distancia">
-                                      {runnersForDistance
-                                        .filter((r) => r.categoria !== cat.nombre)
-                                        .map((r) => {
+                                    {otherRunnersInSex.length > 0 && (
+                                      <optgroup label={`Otros corredores ${selectedSex.toLowerCase()}s de la distancia`}>
+                                        {otherRunnersInSex.map((r) => {
                                           const isDq = Boolean(disqualifiedRunners[r._id]);
                                           const otherPos = positions.find(
                                             (p) => p.posicion !== posItem.posicion && p.registrationId === r._id
@@ -1074,7 +1273,8 @@ export const RaceResultsManagement: React.FC = () => {
                                             </option>
                                           );
                                         })}
-                                    </optgroup>
+                                      </optgroup>
+                                    )}
                                   </select>
 
                                   {posItem.registrationId && (
@@ -1083,7 +1283,7 @@ export const RaceResultsManagement: React.FC = () => {
                                       <button
                                         type="button"
                                         onClick={() => handleSelectCategoryWinner(cat.nombre, posItem.posicion, '')}
-                                        className="text-rose-600 hover:underline font-bold"
+                                        className="text-rose-600 hover:underline font-bold cursor-pointer"
                                         title="Quitar corredor del puesto"
                                       >
                                         Limpiar
@@ -1123,10 +1323,246 @@ export const RaceResultsManagement: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 5. CARGA Y EDICIÓN DE TIEMPOS DE TODOS LOS CORREDORES                     */}
+      {/* 5. TABLERO DE PREMIACIÓN FINAL DE LA CARRERA                              */}
+      {/* ========================================================================= */}
+      <div className="bg-gradient-to-b from-slate-900 to-slate-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-700/60 pb-5">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-400 flex items-center justify-center border border-amber-400/30">
+                <Trophy className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white">
+                  Tablero de Premiación Final
+                </h2>
+                <span className="text-xs text-slate-400 font-medium">
+                  Distancia Oficial: <strong className="text-machine-light">{selectedDistance}k</strong> • Cuadro Oficial de Ganadores
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="px-3.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700 text-xs text-slate-300 font-semibold">
+              {runnersForDistance.length} corredores inscriptos
+            </div>
+          </div>
+        </div>
+
+        {/* Comparativa por Sexo en Dos Columnas */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          {/* Columna Masculina */}
+          <div className="bg-slate-800/60 rounded-2xl border border-blue-500/30 p-5 space-y-5">
+            <div className="flex items-center justify-between border-b border-blue-500/20 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">👨</span>
+                <h3 className="font-black text-sm uppercase tracking-wider text-blue-400">
+                  Premiación Masculina — {selectedDistance}k
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSex('Masculino')}
+                className="text-[11px] font-bold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
+              >
+                Editar Masculino →
+              </button>
+            </div>
+
+            {/* Podio General Masculino */}
+            <div className="space-y-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                Podio Clasificación General
+              </span>
+              <div className="space-y-2">
+                {podium.Masculino.map((p) => {
+                  const medal = p.posicion === 1 ? '🥇' : p.posicion === 2 ? '🥈' : '🥉';
+                  return (
+                    <div
+                      key={p.posicion}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/60 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-base select-none">{medal}</span>
+                        <span className="font-extrabold text-slate-300 whitespace-nowrap">{p.posicion}.º</span>
+                        {p.nombre ? (
+                          <div className="truncate">
+                            <span className="font-bold text-white truncate">{p.nombre}</span>
+                            {p.dorsal !== undefined && (
+                              <span className="text-blue-400 font-bold ml-1.5 text-[11px]">#{p.dorsal}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-500 italic text-[11px]">Sin asignar</span>
+                        )}
+                      </div>
+                      <span className="font-mono font-bold text-slate-300 shrink-0 ml-2">
+                        {p.tiempo || '--:--:--'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Ganadores por Categoría Masculinos */}
+            {race?.categorias && race.categorias.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-slate-700/50">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                  Podios por Categoría de Edad
+                </span>
+                <div className="space-y-3">
+                  {race.categorias.map((cat) => {
+                    const catPositions = categoryWinners.Masculino?.[cat.nombre] || [];
+                    return (
+                      <div key={cat.nombre} className="p-3 rounded-xl bg-slate-900/40 border border-slate-700/40 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold text-blue-300">
+                          <span>{cat.nombre}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {cat.edadMinima} a {cat.edadMaxima} años
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[11px]">
+                          {[1, 2, 3].map((pos) => {
+                            const match = catPositions.find((cp) => cp.posicion === pos);
+                            const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉';
+                            return (
+                              <div key={pos} className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50 flex flex-col justify-between">
+                                <div className="flex items-center gap-1 font-bold text-slate-300">
+                                  <span>{medal}</span>
+                                  <span>{pos}.º</span>
+                                </div>
+                                {match?.nombre ? (
+                                  <div className="truncate mt-0.5">
+                                    <span className="text-white font-medium text-[11px] block truncate">{match.nombre}</span>
+                                    <span className="font-mono text-[10px] text-blue-400">{match.tiempo || 's/t'}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-500 italic text-[10px] mt-0.5">-</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Columna Femenina */}
+          <div className="bg-slate-800/60 rounded-2xl border border-rose-500/30 p-5 space-y-5">
+            <div className="flex items-center justify-between border-b border-rose-500/20 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">👩</span>
+                <h3 className="font-black text-sm uppercase tracking-wider text-rose-400">
+                  Premiación Femenina — {selectedDistance}k
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSex('Femenino')}
+                className="text-[11px] font-bold text-rose-400 hover:text-rose-300 hover:underline cursor-pointer"
+              >
+                Editar Femenino →
+              </button>
+            </div>
+
+            {/* Podio General Femenino */}
+            <div className="space-y-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                Podio Clasificación General
+              </span>
+              <div className="space-y-2">
+                {podium.Femenino.map((p) => {
+                  const medal = p.posicion === 1 ? '🥇' : p.posicion === 2 ? '🥈' : '🥉';
+                  return (
+                    <div
+                      key={p.posicion}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/60 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-base select-none">{medal}</span>
+                        <span className="font-extrabold text-slate-300 whitespace-nowrap">{p.posicion}.º</span>
+                        {p.nombre ? (
+                          <div className="truncate">
+                            <span className="font-bold text-white truncate">{p.nombre}</span>
+                            {p.dorsal !== undefined && (
+                              <span className="text-rose-400 font-bold ml-1.5 text-[11px]">#{p.dorsal}</span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-500 italic text-[11px]">Sin asignar</span>
+                        )}
+                      </div>
+                      <span className="font-mono font-bold text-slate-300 shrink-0 ml-2">
+                        {p.tiempo || '--:--:--'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Ganadores por Categoría Femeninos */}
+            {race?.categorias && race.categorias.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-slate-700/50">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                  Podios por Categoría de Edad
+                </span>
+                <div className="space-y-3">
+                  {race.categorias.map((cat) => {
+                    const catPositions = categoryWinners.Femenino?.[cat.nombre] || [];
+                    return (
+                      <div key={cat.nombre} className="p-3 rounded-xl bg-slate-900/40 border border-slate-700/40 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-bold text-rose-300">
+                          <span>{cat.nombre}</span>
+                          <span className="text-[10px] text-slate-400 font-normal">
+                            {cat.edadMinima} a {cat.edadMaxima} años
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[11px]">
+                          {[1, 2, 3].map((pos) => {
+                            const match = catPositions.find((cp) => cp.posicion === pos);
+                            const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉';
+                            return (
+                              <div key={pos} className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50 flex flex-col justify-between">
+                                <div className="flex items-center gap-1 font-bold text-slate-300">
+                                  <span>{medal}</span>
+                                  <span>{pos}.º</span>
+                                </div>
+                                {match?.nombre ? (
+                                  <div className="truncate mt-0.5">
+                                    <span className="text-white font-medium text-[11px] block truncate">{match.nombre}</span>
+                                    <span className="font-mono text-[10px] text-rose-400">{match.tiempo || 's/t'}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-500 italic text-[10px] mt-0.5">-</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 6. CARGA Y EDICIÓN DE TIEMPOS DE TODOS LOS CORREDORES                     */}
       {/* ========================================================================= */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-machine" />
@@ -1139,40 +1575,68 @@ export const RaceResultsManagement: React.FC = () => {
             </p>
           </div>
 
-          {/* Buscador de corredores */}
-          <div className="relative w-full md:w-72">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por corredor, DNI o dorsal..."
-              className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine transition-all"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {/* Filtro por sexo en la tabla */}
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+              {(['Todos', 'Masculino', 'Femenino'] as const).map((filterVal) => {
+                const isSel = tableSexFilter === filterVal;
+                const count = filterVal === 'Todos'
+                  ? runnersForDistance.length
+                  : runnersForDistance.filter((r) => getRunnerSex(r) === filterVal).length;
+                return (
+                  <button
+                    key={filterVal}
+                    type="button"
+                    onClick={() => setTableSexFilter(filterVal)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      isSel
+                        ? 'bg-white text-slate-800 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    {filterVal === 'Masculino' ? '👨 ' : filterVal === 'Femenino' ? '👩 ' : ''}
+                    {filterVal} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Buscador de corredores */}
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar corredor, DNI o dorsal..."
+                className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-machine/20 focus:border-machine transition-all"
+              />
+            </div>
           </div>
         </div>
 
         {/* Tabla de Corredores */}
         <div className="overflow-x-auto w-full">
-          <table className="w-full text-left border-collapse min-w-[850px]">
+          <table className="w-full text-left border-collapse min-w-[900px]">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black uppercase tracking-wider text-slate-500">
                 <th className="px-5 py-4 w-24 text-center">Dorsal</th>
                 <th className="px-5 py-4">Corredor</th>
-                <th className="px-5 py-4 w-32 text-center">DNI</th>
-                <th className="px-5 py-4 w-44">Categoría</th>
-                <th className="px-5 py-4 w-36 text-center">Distinción</th>
+                <th className="px-5 py-4 w-28 text-center">DNI</th>
+                <th className="px-5 py-4 w-32 text-center">Sexo</th>
+                <th className="px-5 py-4 w-40">Categoría</th>
+                <th className="px-5 py-4 w-44 text-center">Distinción</th>
                 <th className="px-5 py-4 w-36 text-center">Estado</th>
-                <th className="px-5 py-4 w-60 text-center">Edición de Tiempos (HH:MM:SS)</th>
+                <th className="px-5 py-4 w-56 text-center">Edición de Tiempos (HH:MM:SS)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
               {filteredRunners.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
+                  <td colSpan={8} className="px-5 py-12 text-center text-slate-400">
                     <p className="text-sm font-bold text-slate-600">No se encontraron corredores inscriptos en {selectedDistance}k</p>
                     <p className="text-xs text-slate-400 mt-1">
-                      {searchTerm.trim() ? 'Prueba con otro término de búsqueda.' : 'No hay inscripciones activas para esta distancia.'}
+                      {searchTerm.trim() ? 'Prueba con otro término de búsqueda.' : 'No hay inscripciones activas para esta distancia con el filtro actual.'}
                     </p>
                   </td>
                 </tr>
@@ -1180,19 +1644,26 @@ export const RaceResultsManagement: React.FC = () => {
                 filteredRunners.map((runner) => {
                   const currentRunnerTime = runnerTimes[runner._id] || '';
                   const isDq = Boolean(disqualifiedRunners[runner._id]);
+                  const runnerSex = getRunnerSex(runner);
 
-                  // ¿Tiene puesto en el podio general? (Solo si no está descalificado)
-                  const podEntry = isDq ? null : podium.find((p) => p.registrationId === runner._id);
+                  // ¿Tiene puesto en el podio general de su sexo?
+                  const podEntry = isDq
+                    ? null
+                    : podium.Masculino.find((p) => p.registrationId === runner._id && p.corredorId) ||
+                      podium.Femenino.find((p) => p.registrationId === runner._id && p.corredorId);
                   
                   // ¿Tiene puesto en su categoría de edad? (1.º, 2.º o 3.º puesto)
                   let catPodiumEntry: CategoryPodiumPosition | undefined = undefined;
                   if (!isDq) {
-                    for (const positions of Object.values(categoryWinners)) {
-                      const match = positions.find((p) => p.registrationId === runner._id && p.corredorId);
-                      if (match) {
-                        catPodiumEntry = match;
-                        break;
+                    for (const s of ['Masculino', 'Femenino'] as SexType[]) {
+                      for (const positions of Object.values(categoryWinners[s] || {})) {
+                        const match = positions.find((p) => p.registrationId === runner._id && p.corredorId);
+                        if (match) {
+                          catPodiumEntry = match;
+                          break;
+                        }
                       }
+                      if (catPodiumEntry) break;
                     }
                   }
 
@@ -1233,6 +1704,20 @@ export const RaceResultsManagement: React.FC = () => {
                         {runner.datosCorredor?.dni || '-'}
                       </td>
 
+                      {/* Sexo */}
+                      <td className="px-5 py-4 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                            runnerSex === 'Masculino'
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}
+                        >
+                          <span>{runnerSex === 'Masculino' ? '👨' : '👩'}</span>
+                          <span>{runnerSex}</span>
+                        </span>
+                      </td>
+
                       {/* Categoría */}
                       <td className="px-5 py-4">
                         <span className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-semibold">
@@ -1259,17 +1744,13 @@ export const RaceResultsManagement: React.FC = () => {
                                       : 'bg-orange-100 text-orange-900 border border-orange-300'
                                   }`}
                                 >
-                                  {podEntry.posicion === 1 ? '🥇 #1 General' : podEntry.posicion === 2 ? '🥈 #2 General' : '🥉 #3 General'}
+                                  {podEntry.posicion === 1 ? '🥇' : podEntry.posicion === 2 ? '🥈' : '🥉'} #{podEntry.posicion} Gral. {podEntry.sexo === 'Masculino' ? 'Masc.' : 'Fem.'}
                                 </span>
                               )}
 
                               {catPodiumEntry && (
                                 <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 border border-purple-200 px-2 py-0.5 rounded text-[10px] font-black">
-                                  {catPodiumEntry.posicion === 1
-                                    ? '🥇 1.º Cat.'
-                                    : catPodiumEntry.posicion === 2
-                                    ? '🥈 2.º Cat.'
-                                    : '🥉 3.º Cat.'}
+                                  {catPodiumEntry.posicion === 1 ? '🥇' : catPodiumEntry.posicion === 2 ? '🥈' : '🥉'} {catPodiumEntry.posicion}.º Cat. ({catPodiumEntry.sexo === 'Masculino' ? 'Masc.' : 'Fem.'})
                                 </span>
                               )}
 
@@ -1358,7 +1839,7 @@ export const RaceResultsManagement: React.FC = () => {
         {/* Barra de acción inferior */}
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
           <span className="text-xs text-slate-500 font-medium">
-            Total inscriptos en {selectedDistance}k: <strong>{runnersForDistance.length}</strong> corredores
+            Total inscriptos en {selectedDistance}k: <strong>{runnersForDistance.length}</strong> corredores ({runnersForDistance.filter(r => getRunnerSex(r) === 'Masculino').length} hombres / {runnersForDistance.filter(r => getRunnerSex(r) === 'Femenino').length} mujeres)
           </span>
 
           <button
