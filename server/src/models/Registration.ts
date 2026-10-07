@@ -67,15 +67,15 @@ const RunnerSnapshotSchema = new Schema<IRunnerSnapshot>(
     apellido: { type: String, required: true, trim: true },
     dni: { type: String, required: true, trim: true },
     email: { type: String, required: true, trim: true, lowercase: true },
-    telefono: { type: String, required: true, trim: true },
+    telefono: { type: String, default: '-', trim: true },
     fechaNacimiento: { type: Date, required: true },
     sexo: {
       type: String,
       enum: ['Masculino', 'Femenino'],
       required: true,
     },
-    ciudad: { type: String, required: true, trim: true },
-    provincia: { type: String, required: true, trim: true },
+    ciudad: { type: String, default: '-', trim: true },
+    provincia: { type: String, default: '-', trim: true },
     contactoEmergencia: {
       nombre: { type: String, trim: true },
       telefono: { type: String, trim: true },

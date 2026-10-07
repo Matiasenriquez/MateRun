@@ -372,13 +372,50 @@ export const registerByAdmin = async (req: Request, res: Response): Promise<void
       ciudad,
       provincia,
       contactoEmergencia,
+      corredorId,
+      usuarioId,
     } = req.body;
 
+    const targetUserId = corredorId || usuarioId;
+
+    // Si se pasa targetUserId, buscar el usuario registrado primero
+    let runnerUser = null;
+    if (targetUserId) {
+      runnerUser = await User.findById(targetUserId);
+      if (!runnerUser) {
+        res.status(404).json({ error: 'Corredor no encontrado' });
+        return;
+      }
+    } else if (dni || email) {
+      runnerUser = await User.findOne({
+        $or: [
+          ...(email ? [{ email: email.toLowerCase().trim() }] : []),
+          ...(dni ? [{ dni: String(dni).trim() }] : []),
+        ],
+      });
+    }
+
+    // Regla de negocio: Solo pueden seleccionarse usuarios que posean el rol "Corredor"
+    if (runnerUser && runnerUser.rol && runnerUser.rol.toLowerCase() !== 'corredor') {
+      res.status(400).json({
+        error: 'Rol no permitido',
+        message: 'Solo se pueden asignar usuarios que posean el rol Corredor',
+      });
+      return;
+    }
+
+    const finalNombre = runnerUser?.nombre || nombre;
+    const finalApellido = runnerUser?.apellido || apellido;
+    const finalDni = runnerUser?.dni || dni;
+    const finalEmail = runnerUser?.email || email;
+    const finalFechaNacimiento = runnerUser?.fechaNacimiento || fechaNacimiento;
+    const finalSexo = runnerUser?.sexo || sexo;
+
     // 1. Validar campos requeridos
-    if (!carreraId || dorsal === undefined || !distancia || !talleRemera || !nombre || !apellido || !dni || !email || !fechaNacimiento || !sexo) {
+    if (!carreraId || dorsal === undefined || !distancia || !talleRemera || !finalNombre || !finalApellido || !finalDni || !finalEmail || !finalFechaNacimiento || !finalSexo) {
       res.status(400).json({
         error: 'Datos incompletos',
-        message: 'Todos los campos, incluyendo el número de dorsal, son obligatorios',
+        message: 'Todos los campos obligatorios deben estar presentes',
       });
       return;
     }
@@ -425,79 +462,117 @@ export const registerByAdmin = async (req: Request, res: Response): Promise<void
     });
 
     if (existingDorsal) {
-      // Mensaje exacto especificado en los requerimientos del usuario
+      // Mensaje exacto especificado en los requerimientos del usuario: "Número de Dorsal ocupado."
       res.status(400).json({
-        error: 'Dorsal no disponible',
-        message: 'Dorsal no disponible',
+        error: 'Número de Dorsal ocupado.',
+        message: 'Número de Dorsal ocupado.',
       });
       return;
     }
 
-    // 4. Buscar o crear el usuario corredor asociado a ese DNI/Email
-    let runnerUser = await User.findOne({
-      $or: [{ email: email.toLowerCase().trim() }, { dni: dni.trim() }],
-    });
+    // 4. Asignar automáticamente la categoría por edad al evento
+    const assignedCategory = determineRunnerCategory(finalFechaNacimiento, race.fecha, race.categorias);
 
-    if (!runnerUser) {
-      // Si el corredor no existía previamente, se crea automáticamente con contraseña temporal
-      runnerUser = new User({
-        nombre: nombre.trim(),
-        apellido: apellido.trim(),
-        dni: dni.trim(),
-        email: email.toLowerCase().trim(),
-        password: `MateRun${dni.trim()}!`, // Contraseña inicial generada
-        telefono: telefono?.trim(),
-        fechaNacimiento: new Date(fechaNacimiento),
-        sexo,
-        ciudad: ciudad?.trim(),
-        provincia: provincia?.trim(),
-        contactoEmergencia,
-        rol: 'corredor',
+    // 5. Verificar que el corredor no esté ya inscripto en esta carrera (o reactivar si estaba en 'Baja')
+    let newRegistration = null;
+    if (runnerUser) {
+      const existingReg = await Registration.findOne({
+        carrera: carreraId,
+        corredor: runnerUser._id,
       });
-      await runnerUser.save();
+
+      if (existingReg) {
+        if (existingReg.estado !== 'Baja') {
+          res.status(400).json({
+            error: 'Inscripción existente',
+            message: `El corredor ya se encuentra inscripto en esta carrera con el dorsal #${existingReg.dorsal}`,
+          });
+          return;
+        } else {
+          // Si estaba en 'Baja', se reactiva con el nuevo dorsal y datos sin violar el índice único carrera_corredor
+          existingReg.dorsal = dorsalNumber;
+          existingReg.distancia = Number(distancia);
+          existingReg.talleRemera = talleRemera;
+          existingReg.estado = 'Pendiente';
+          existingReg.categoria = assignedCategory;
+          existingReg.datosCorredor = {
+            nombre: runnerUser.nombre || String(finalNombre).trim(),
+            apellido: runnerUser.apellido || String(finalApellido).trim(),
+            dni: runnerUser.dni || String(finalDni).trim(),
+            email: runnerUser.email || String(finalEmail).toLowerCase().trim(),
+            telefono: runnerUser.telefono || (telefono ? telefono.trim() : '-') || '-',
+            fechaNacimiento: runnerUser.fechaNacimiento || new Date(finalFechaNacimiento),
+            sexo: runnerUser.sexo || finalSexo,
+            ciudad: runnerUser.ciudad || (ciudad ? ciudad.trim() : '-') || '-',
+            provincia: runnerUser.provincia || (provincia ? provincia.trim() : '-') || '-',
+            contactoEmergencia: runnerUser.contactoEmergencia || contactoEmergencia,
+          };
+          existingReg.fechaInscripcion = new Date();
+          await existingReg.save();
+          newRegistration = existingReg;
+        }
+      }
     }
 
-    // 5. Asignar automáticamente la categoría por edad al evento
-    const assignedCategory = determineRunnerCategory(fechaNacimiento, race.fecha, race.categorias);
+    if (!newRegistration) {
+      if (!runnerUser) {
+        // Si el corredor no existía previamente, se crea automáticamente con contraseña temporal
+        runnerUser = new User({
+          nombre: String(finalNombre).trim(),
+          apellido: String(finalApellido).trim(),
+          dni: String(finalDni).trim(),
+          email: String(finalEmail).toLowerCase().trim(),
+          password: `MateRun${String(finalDni).trim()}!`, // Contraseña inicial generada
+          telefono: telefono?.trim(),
+          fechaNacimiento: new Date(finalFechaNacimiento),
+          sexo: finalSexo,
+          ciudad: ciudad?.trim(),
+          provincia: provincia?.trim(),
+          contactoEmergencia,
+          rol: 'corredor',
+        });
+        await runnerUser.save();
+      }
 
-    // Crear la inscripción
-    const newRegistration = new Registration({
-      carrera: carreraId,
-      corredor: runnerUser._id,
-      dorsal: dorsalNumber,
-      distancia: Number(distancia),
-      datosCorredor: {
-        nombre: nombre.trim(),
-        apellido: apellido.trim(),
-        dni: dni.trim(),
-        email: email.toLowerCase().trim(),
-        telefono: telefono ? telefono.trim() : '',
-        fechaNacimiento: new Date(fechaNacimiento),
-        sexo,
-        ciudad: ciudad ? ciudad.trim() : '',
-        provincia: provincia ? provincia.trim() : '',
-        contactoEmergencia,
-      },
-      talleRemera,
-      estado: 'Pendiente',
-      categoria: assignedCategory,
-      fechaInscripcion: new Date(),
-    });
+      // Crear la inscripción
+      newRegistration = new Registration({
+        carrera: carreraId,
+        corredor: runnerUser._id,
+        dorsal: dorsalNumber,
+        distancia: Number(distancia),
+        datosCorredor: {
+          nombre: runnerUser.nombre || String(finalNombre).trim(),
+          apellido: runnerUser.apellido || String(finalApellido).trim(),
+          dni: runnerUser.dni || String(finalDni).trim(),
+          email: runnerUser.email || String(finalEmail).toLowerCase().trim(),
+          telefono: runnerUser.telefono || (telefono ? telefono.trim() : '-') || '-',
+          fechaNacimiento: runnerUser.fechaNacimiento || new Date(finalFechaNacimiento),
+          sexo: runnerUser.sexo || finalSexo,
+          ciudad: runnerUser.ciudad || (ciudad ? ciudad.trim() : '-') || '-',
+          provincia: runnerUser.provincia || (provincia ? provincia.trim() : '-') || '-',
+          contactoEmergencia: runnerUser.contactoEmergencia || contactoEmergencia,
+        },
+        talleRemera,
+        estado: 'Pendiente',
+        categoria: assignedCategory,
+        fechaInscripcion: new Date(),
+      });
 
-    await newRegistration.save();
+      await newRegistration.save();
+    }
 
     // 6. Registrar auditoría con el usuario administrador responsable
     await AuditLog.create({
       carrera: carreraId,
       tipo: 'NUEVA_INSCRIPCION',
       usuarioResponsable: adminId,
-      descripcion: `Alta manual de corredor: ${nombre} ${apellido} (DNI ${dni}) con dorsal #${dorsalNumber}`,
+      descripcion: `Alta manual de corredor: ${finalNombre} ${finalApellido} (DNI ${finalDni}) con dorsal #${dorsalNumber}`,
       detalles: {
         registrationId: newRegistration._id,
         corredor: {
-          nombre,
-          apellido,
-          dni,
+          nombre: finalNombre,
+          apellido: finalApellido,
+          dni: finalDni,
         },
         dorsal: dorsalNumber,
         distancia: Number(distancia),

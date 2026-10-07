@@ -1186,7 +1186,10 @@ export const UserManagement: React.FC = () => {
       {/* NOTIFICACIÓN DE CONFIRMACIÓN OBLIGATORIA: GUARDAR EDICIÓN                   */}
       {/* ========================================================================= */}
       {isConfirmEditOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in">
+        <div 
+          className="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in"
+          style={{ zIndex: 9999 }}
+        >
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-6 text-center animate-in zoom-in-95 space-y-4">
             <div className="w-14 h-14 rounded-full bg-amber-100 text-amber-600 mx-auto flex items-center justify-center">
               <AlertTriangle className="w-7 h-7" />
