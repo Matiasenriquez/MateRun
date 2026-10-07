@@ -147,6 +147,9 @@ export const RaceResultsManagement: React.FC = () => {
   const [showFinalizeModal, setShowFinalizeModal] = useState<boolean>(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<boolean>(false);
 
+  // Modal para visualizar el Tablero de Resultados Finales consolidado
+  const [showFinalResultsModal, setShowFinalResultsModal] = useState<boolean>(false);
+
   /**
    * Carga los datos de la carrera, inscriptos y resultados de la distancia seleccionada
    */
@@ -953,16 +956,16 @@ export const RaceResultsManagement: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Botones de selección de sexo (únicamente texto: Masculino / Femenino) */}
           {(['Masculino', 'Femenino'] as SexType[]).map((sex) => {
-            const count = runnersForDistance.filter((r) => getRunnerSex(r) === sex).length;
             const isSelected = selectedSex === sex;
             return (
               <button
                 key={sex}
                 type="button"
                 onClick={() => setSelectedSex(sex)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
+                className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
                   isSelected
                     ? sex === 'Masculino'
                       ? 'bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-500/20'
@@ -970,18 +973,24 @@ export const RaceResultsManagement: React.FC = () => {
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                 }`}
               >
-                <span className="text-sm">{sex === 'Masculino' ? '👨' : '👩'}</span>
-                <span>{sex}</span>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
-                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {count} inscriptos
-                </span>
+                {sex}
               </button>
             );
           })}
+
+          {/* Separador */}
+          <div className="h-6 w-px bg-slate-200 hidden sm:block mx-0.5"></div>
+
+          {/* Botón Resultados Finales (abre el Tablero de Premiación Final consolidado) */}
+          <button
+            type="button"
+            onClick={() => setShowFinalResultsModal(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-amber-900 bg-amber-100/90 hover:bg-amber-200/90 border border-amber-300 shadow-xs transition-all cursor-pointer"
+            title="Ver el Tablero de Premiación Final consolidado"
+          >
+            <Trophy className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Resultados Finales</span>
+          </button>
         </div>
       </div>
 
@@ -1323,243 +1332,7 @@ export const RaceResultsManagement: React.FC = () => {
       </div>
 
       {/* ========================================================================= */}
-      {/* 5. TABLERO DE PREMIACIÓN FINAL DE LA CARRERA                              */}
-      {/* ========================================================================= */}
-      <div className="bg-gradient-to-b from-slate-900 to-slate-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-700/60 pb-5">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-amber-400/20 text-amber-400 flex items-center justify-center border border-amber-400/30">
-                <Trophy className="w-6 h-6" />
-              </div>
-              <div>
-                <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white">
-                  Tablero de Premiación Final
-                </h2>
-                <span className="text-xs text-slate-400 font-medium">
-                  Distancia Oficial: <strong className="text-machine-light">{selectedDistance}k</strong> • Cuadro Oficial de Ganadores
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="px-3.5 py-1.5 rounded-xl bg-slate-800/90 border border-slate-700 text-xs text-slate-300 font-semibold">
-              {runnersForDistance.length} corredores inscriptos
-            </div>
-          </div>
-        </div>
-
-        {/* Comparativa por Sexo en Dos Columnas */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          {/* Columna Masculina */}
-          <div className="bg-slate-800/60 rounded-2xl border border-blue-500/30 p-5 space-y-5">
-            <div className="flex items-center justify-between border-b border-blue-500/20 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">👨</span>
-                <h3 className="font-black text-sm uppercase tracking-wider text-blue-400">
-                  Premiación Masculina — {selectedDistance}k
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedSex('Masculino')}
-                className="text-[11px] font-bold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
-              >
-                Editar Masculino →
-              </button>
-            </div>
-
-            {/* Podio General Masculino */}
-            <div className="space-y-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
-                Podio Clasificación General
-              </span>
-              <div className="space-y-2">
-                {podium.Masculino.map((p) => {
-                  const medal = p.posicion === 1 ? '🥇' : p.posicion === 2 ? '🥈' : '🥉';
-                  return (
-                    <div
-                      key={p.posicion}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/60 text-xs"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-base select-none">{medal}</span>
-                        <span className="font-extrabold text-slate-300 whitespace-nowrap">{p.posicion}.º</span>
-                        {p.nombre ? (
-                          <div className="truncate">
-                            <span className="font-bold text-white truncate">{p.nombre}</span>
-                            {p.dorsal !== undefined && (
-                              <span className="text-blue-400 font-bold ml-1.5 text-[11px]">#{p.dorsal}</span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-500 italic text-[11px]">Sin asignar</span>
-                        )}
-                      </div>
-                      <span className="font-mono font-bold text-slate-300 shrink-0 ml-2">
-                        {p.tiempo || '--:--:--'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Ganadores por Categoría Masculinos */}
-            {race?.categorias && race.categorias.length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-slate-700/50">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
-                  Podios por Categoría de Edad
-                </span>
-                <div className="space-y-3">
-                  {race.categorias.map((cat) => {
-                    const catPositions = categoryWinners.Masculino?.[cat.nombre] || [];
-                    return (
-                      <div key={cat.nombre} className="p-3 rounded-xl bg-slate-900/40 border border-slate-700/40 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs font-bold text-blue-300">
-                          <span>{cat.nombre}</span>
-                          <span className="text-[10px] text-slate-400 font-normal">
-                            {cat.edadMinima} a {cat.edadMaxima} años
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[11px]">
-                          {[1, 2, 3].map((pos) => {
-                            const match = catPositions.find((cp) => cp.posicion === pos);
-                            const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉';
-                            return (
-                              <div key={pos} className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50 flex flex-col justify-between">
-                                <div className="flex items-center gap-1 font-bold text-slate-300">
-                                  <span>{medal}</span>
-                                  <span>{pos}.º</span>
-                                </div>
-                                {match?.nombre ? (
-                                  <div className="truncate mt-0.5">
-                                    <span className="text-white font-medium text-[11px] block truncate">{match.nombre}</span>
-                                    <span className="font-mono text-[10px] text-blue-400">{match.tiempo || 's/t'}</span>
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-500 italic text-[10px] mt-0.5">-</span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Columna Femenina */}
-          <div className="bg-slate-800/60 rounded-2xl border border-rose-500/30 p-5 space-y-5">
-            <div className="flex items-center justify-between border-b border-rose-500/20 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">👩</span>
-                <h3 className="font-black text-sm uppercase tracking-wider text-rose-400">
-                  Premiación Femenina — {selectedDistance}k
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedSex('Femenino')}
-                className="text-[11px] font-bold text-rose-400 hover:text-rose-300 hover:underline cursor-pointer"
-              >
-                Editar Femenino →
-              </button>
-            </div>
-
-            {/* Podio General Femenino */}
-            <div className="space-y-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
-                Podio Clasificación General
-              </span>
-              <div className="space-y-2">
-                {podium.Femenino.map((p) => {
-                  const medal = p.posicion === 1 ? '🥇' : p.posicion === 2 ? '🥈' : '🥉';
-                  return (
-                    <div
-                      key={p.posicion}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/60 text-xs"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-base select-none">{medal}</span>
-                        <span className="font-extrabold text-slate-300 whitespace-nowrap">{p.posicion}.º</span>
-                        {p.nombre ? (
-                          <div className="truncate">
-                            <span className="font-bold text-white truncate">{p.nombre}</span>
-                            {p.dorsal !== undefined && (
-                              <span className="text-rose-400 font-bold ml-1.5 text-[11px]">#{p.dorsal}</span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-500 italic text-[11px]">Sin asignar</span>
-                        )}
-                      </div>
-                      <span className="font-mono font-bold text-slate-300 shrink-0 ml-2">
-                        {p.tiempo || '--:--:--'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Ganadores por Categoría Femeninos */}
-            {race?.categorias && race.categorias.length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-slate-700/50">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
-                  Podios por Categoría de Edad
-                </span>
-                <div className="space-y-3">
-                  {race.categorias.map((cat) => {
-                    const catPositions = categoryWinners.Femenino?.[cat.nombre] || [];
-                    return (
-                      <div key={cat.nombre} className="p-3 rounded-xl bg-slate-900/40 border border-slate-700/40 space-y-1.5">
-                        <div className="flex items-center justify-between text-xs font-bold text-rose-300">
-                          <span>{cat.nombre}</span>
-                          <span className="text-[10px] text-slate-400 font-normal">
-                            {cat.edadMinima} a {cat.edadMaxima} años
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[11px]">
-                          {[1, 2, 3].map((pos) => {
-                            const match = catPositions.find((cp) => cp.posicion === pos);
-                            const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉';
-                            return (
-                              <div key={pos} className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50 flex flex-col justify-between">
-                                <div className="flex items-center gap-1 font-bold text-slate-300">
-                                  <span>{medal}</span>
-                                  <span>{pos}.º</span>
-                                </div>
-                                {match?.nombre ? (
-                                  <div className="truncate mt-0.5">
-                                    <span className="text-white font-medium text-[11px] block truncate">{match.nombre}</span>
-                                    <span className="font-mono text-[10px] text-rose-400">{match.tiempo || 's/t'}</span>
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-500 italic text-[10px] mt-0.5">-</span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 6. CARGA Y EDICIÓN DE TIEMPOS DE TODOS LOS CORREDORES                     */}
+      {/* 5. CARGA Y EDICIÓN DE TIEMPOS DE TODOS LOS CORREDORES                     */}
       {/* ========================================================================= */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -1897,6 +1670,313 @@ export const RaceResultsManagement: React.FC = () => {
                 className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors cursor-pointer disabled:opacity-60"
               >
                 {isUpdatingStatus ? 'Actualizando...' : 'Confirmar y Finalizar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: TABLERO DE RESULTADOS FINALES Y PREMIACIÓN                         */}
+      {/* ========================================================================= */}
+      {showFinalResultsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-6xl w-full shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
+            {/* Cabecera del Modal */}
+            <div className="p-5 sm:p-6 border-b border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 bg-slate-900/95">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-amber-400/20 text-amber-400 flex items-center justify-center border border-amber-400/30 shrink-0">
+                  <Trophy className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg sm:text-xl font-black uppercase tracking-tight text-white">
+                      Resultados Finales — {race?.nombre}
+                    </h2>
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded bg-machine-light/20 text-machine-light border border-machine/30">
+                      {selectedDistance}k
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-medium mt-0.5">
+                    Tablero Oficial de Premiación Consolidada por Sexo y Categoría de Edad
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {/* Selector de distancias dentro del modal si la carrera tiene varias */}
+                {race && race.distancias && race.distancias.length > 1 && (
+                  <div className="flex items-center gap-1.5 bg-slate-800 p-1 rounded-xl border border-slate-700">
+                    {race.distancias.map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => handleSelectDistance(d)}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          selectedDistance === d
+                            ? 'bg-machine text-white shadow-xs'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {d}k
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowFinalResultsModal(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Cerrar resultados finales"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Contenido scrolleable con el Tablero de Premiación Final */}
+            <div className="overflow-y-auto p-5 sm:p-7 space-y-6 flex-1 text-white">
+              {/* Resumen de la distancia */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/50 text-xs">
+                <div className="flex items-center gap-4 text-slate-300">
+                  <span>Distancia Oficial: <strong className="text-white">{selectedDistance} Kilómetros ({selectedDistance}k)</strong></span>
+                  <span>•</span>
+                  <span>Inscriptos en {selectedDistance}k: <strong className="text-white">{runnersForDistance.length}</strong></span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-slate-400">
+                    {runnersForDistance.filter(r => getRunnerSex(r) === 'Masculino').length} hombres / {runnersForDistance.filter(r => getRunnerSex(r) === 'Femenino').length} mujeres
+                  </span>
+                </div>
+              </div>
+
+              {/* Comparativa por Sexo en Dos Columnas */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Columna Masculina */}
+                <div className="bg-slate-800/60 rounded-2xl border border-blue-500/30 p-5 space-y-5">
+                  <div className="flex items-center justify-between border-b border-blue-500/20 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">👨</span>
+                      <h3 className="font-black text-sm uppercase tracking-wider text-blue-400">
+                        Premiación Masculina — {selectedDistance}k
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSex('Masculino');
+                        setShowFinalResultsModal(false);
+                      }}
+                      className="text-[11px] font-bold text-blue-400 hover:text-blue-300 hover:underline cursor-pointer"
+                    >
+                      Editar Masculino →
+                    </button>
+                  </div>
+
+                  {/* Podio General Masculino */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                      Podio Clasificación General
+                    </span>
+                    <div className="space-y-2">
+                      {podium.Masculino.map((p) => {
+                        const medal = p.posicion === 1 ? '🥇' : p.posicion === 2 ? '🥈' : '🥉';
+                        return (
+                          <div
+                            key={p.posicion}
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/60 text-xs"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="text-base select-none">{medal}</span>
+                              <span className="font-extrabold text-slate-300 whitespace-nowrap">{p.posicion}.º</span>
+                              {p.nombre ? (
+                                <div className="truncate">
+                                  <span className="font-bold text-white truncate">{p.nombre}</span>
+                                  {p.dorsal !== undefined && (
+                                    <span className="text-blue-400 font-bold ml-1.5 text-[11px]">#{p.dorsal}</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 italic text-[11px]">Sin asignar</span>
+                              )}
+                            </div>
+                            <span className="font-mono font-bold text-slate-300 shrink-0 ml-2">
+                              {p.tiempo || '--:--:--'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Ganadores por Categoría Masculinos */}
+                  {race?.categorias && race.categorias.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-slate-700/50">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                        Podios por Categoría de Edad
+                      </span>
+                      <div className="space-y-3">
+                        {race.categorias.map((cat) => {
+                          const catPositions = categoryWinners.Masculino?.[cat.nombre] || [];
+                          return (
+                            <div key={cat.nombre} className="p-3 rounded-xl bg-slate-900/40 border border-slate-700/40 space-y-1.5">
+                              <div className="flex items-center justify-between text-xs font-bold text-blue-300">
+                                <span>{cat.nombre}</span>
+                                <span className="text-[10px] text-slate-400 font-normal">
+                                  {cat.edadMinima} a {cat.edadMaxima} años
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[11px]">
+                                {[1, 2, 3].map((pos) => {
+                                  const match = catPositions.find((cp) => cp.posicion === pos);
+                                  const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉';
+                                  return (
+                                    <div key={pos} className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50 flex flex-col justify-between">
+                                      <div className="flex items-center gap-1 font-bold text-slate-300">
+                                        <span>{medal}</span>
+                                        <span>{pos}.º</span>
+                                      </div>
+                                      {match?.nombre ? (
+                                        <div className="truncate mt-0.5">
+                                          <span className="text-white font-medium text-[11px] block truncate">{match.nombre}</span>
+                                          <span className="font-mono text-[10px] text-blue-400">{match.tiempo || 's/t'}</span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-500 italic text-[10px] mt-0.5">-</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Columna Femenina */}
+                <div className="bg-slate-800/60 rounded-2xl border border-rose-500/30 p-5 space-y-5">
+                  <div className="flex items-center justify-between border-b border-rose-500/20 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">👩</span>
+                      <h3 className="font-black text-sm uppercase tracking-wider text-rose-400">
+                        Premiación Femenina — {selectedDistance}k
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSex('Femenino');
+                        setShowFinalResultsModal(false);
+                      }}
+                      className="text-[11px] font-bold text-rose-400 hover:text-rose-300 hover:underline cursor-pointer"
+                    >
+                      Editar Femenino →
+                    </button>
+                  </div>
+
+                  {/* Podio General Femenino */}
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                      Podio Clasificación General
+                    </span>
+                    <div className="space-y-2">
+                      {podium.Femenino.map((p) => {
+                        const medal = p.posicion === 1 ? '🥇' : p.posicion === 2 ? '🥈' : '🥉';
+                        return (
+                          <div
+                            key={p.posicion}
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/60 text-xs"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="text-base select-none">{medal}</span>
+                              <span className="font-extrabold text-slate-300 whitespace-nowrap">{p.posicion}.º</span>
+                              {p.nombre ? (
+                                <div className="truncate">
+                                  <span className="font-bold text-white truncate">{p.nombre}</span>
+                                  {p.dorsal !== undefined && (
+                                    <span className="text-rose-400 font-bold ml-1.5 text-[11px]">#{p.dorsal}</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 italic text-[11px]">Sin asignar</span>
+                              )}
+                            </div>
+                            <span className="font-mono font-bold text-slate-300 shrink-0 ml-2">
+                              {p.tiempo || '--:--:--'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Ganadores por Categoría Femeninos */}
+                  {race?.categorias && race.categorias.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-slate-700/50">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 block">
+                        Podios por Categoría de Edad
+                      </span>
+                      <div className="space-y-3">
+                        {race.categorias.map((cat) => {
+                          const catPositions = categoryWinners.Femenino?.[cat.nombre] || [];
+                          return (
+                            <div key={cat.nombre} className="p-3 rounded-xl bg-slate-900/40 border border-slate-700/40 space-y-1.5">
+                              <div className="flex items-center justify-between text-xs font-bold text-rose-300">
+                                <span>{cat.nombre}</span>
+                                <span className="text-[10px] text-slate-400 font-normal">
+                                  {cat.edadMinima} a {cat.edadMaxima} años
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[11px]">
+                                {[1, 2, 3].map((pos) => {
+                                  const match = catPositions.find((cp) => cp.posicion === pos);
+                                  const medal = pos === 1 ? '🥇' : pos === 2 ? '🥈' : '🥉';
+                                  return (
+                                    <div key={pos} className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-700/50 flex flex-col justify-between">
+                                      <div className="flex items-center gap-1 font-bold text-slate-300">
+                                        <span>{medal}</span>
+                                        <span>{pos}.º</span>
+                                      </div>
+                                      {match?.nombre ? (
+                                        <div className="truncate mt-0.5">
+                                          <span className="text-white font-medium text-[11px] block truncate">{match.nombre}</span>
+                                          <span className="font-mono text-[10px] text-rose-400">{match.tiempo || 's/t'}</span>
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-500 italic text-[10px] mt-0.5">-</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </div>
+
+            {/* Footer del Modal */}
+            <div className="p-4 sm:p-5 border-t border-slate-800 bg-slate-900/90 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+              <span className="text-xs text-slate-400">
+                Total inscriptos en {selectedDistance}k: <strong>{runnersForDistance.length}</strong> corredores
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setShowFinalResultsModal(false)}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors cursor-pointer"
+              >
+                Cerrar y Volver a Edición
               </button>
             </div>
           </div>
