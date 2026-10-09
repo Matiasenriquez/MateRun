@@ -76,7 +76,11 @@ export const AdminDashboard: React.FC = () => {
     try {
       setIsRacesLoading(true);
       const res = await api.get('/races');
-      setRaces(res.data.races || []);
+      // Filtro estricto: únicamente carreras visibles y no finalizadas
+      const visibleAvailableRaces = (res.data.races || []).filter(
+        (r: Race) => r.visibilidad !== 'Oculta' && r.estado !== 'finalizada'
+      );
+      setRaces(visibleAvailableRaces);
     } catch (err: any) {
       console.error('Error al cargar carreras en el panel de Admin:', err);
       setErrorMsg('No se pudieron cargar las carreras disponibles del sistema.');
