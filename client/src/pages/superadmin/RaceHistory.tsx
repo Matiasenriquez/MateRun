@@ -26,6 +26,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../api/api';
 import { Race } from '../../types';
 import {
@@ -83,6 +84,7 @@ interface AuditLogEntry {
 export const RaceHistory: React.FC = () => {
   const { raceId } = useParams<{ raceId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Estados de carga y datos
   const [race, setRace] = useState<Race | null>(null);
@@ -343,15 +345,17 @@ export const RaceHistory: React.FC = () => {
             <span>Nómina de Inscriptos</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => navigate(`/admin/race-results/${raceId}`)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
-            title="Gestionar resultados oficiales de la carrera"
-          >
-            <Trophy className="w-4 h-4 text-amber-600" />
-            <span>Cargar Resultados</span>
-          </button>
+          {user?.rol === 'superadmin' && (
+            <button
+              type="button"
+              onClick={() => navigate(`/admin/race-results/${raceId}`)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
+              title="Gestionar resultados oficiales de la carrera"
+            >
+              <Trophy className="w-4 h-4 text-amber-600" />
+              <span>Cargar Resultados</span>
+            </button>
+          )}
 
           <button
             type="button"

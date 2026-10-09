@@ -61,6 +61,20 @@ export const App: React.FC = () => {
               element={<ProtectedRoute allowedRoles={['corredor']}><RunnerProfile /></ProtectedRoute>} 
             />
             
+            {/* Rutas operativas de gestión de carreras y corredores (SuperAdmin y Admin) */}
+            <Route 
+              path="/admin/race-roster/:raceId" 
+              element={<ProtectedRoute allowedRoles={['superadmin', 'admin']}><RaceRoster /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/admin/race-history/:raceId" 
+              element={<ProtectedRoute allowedRoles={['superadmin', 'admin']}><RaceHistory /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/admin/race-reports/:raceId" 
+              element={<ProtectedRoute allowedRoles={['superadmin', 'admin']}><RaceReports /></ProtectedRoute>} 
+            />
+
             {/* Rutas exclusivas de SuperAdmin */}
             <Route 
               path="/admin/races" 
@@ -71,20 +85,8 @@ export const App: React.FC = () => {
               element={<ProtectedRoute allowedRoles={['superadmin']}><UserManagement /></ProtectedRoute>} 
             />
             <Route 
-              path="/admin/race-roster/:raceId" 
-              element={<ProtectedRoute allowedRoles={['superadmin']}><RaceRoster /></ProtectedRoute>} 
-            />
-            <Route 
-              path="/admin/race-history/:raceId" 
-              element={<ProtectedRoute allowedRoles={['superadmin']}><RaceHistory /></ProtectedRoute>} 
-            />
-            <Route 
               path="/admin/race-results/:raceId" 
               element={<ProtectedRoute allowedRoles={['superadmin']}><RaceResultsManagement /></ProtectedRoute>} 
-            />
-            <Route 
-              path="/admin/race-reports/:raceId" 
-              element={<ProtectedRoute allowedRoles={['superadmin']}><RaceReports /></ProtectedRoute>} 
             />
           </Route>
           

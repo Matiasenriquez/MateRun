@@ -24,6 +24,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import {
   ArrowLeft,
   Calendar,
@@ -47,6 +48,7 @@ import { ReportGroup, RaceReportsData } from '../../types';
 export const RaceReports: React.FC = () => {
   const { raceId } = useParams<{ raceId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Estados de datos
   const [reportsData, setReportsData] = useState<RaceReportsData | null>(null);
@@ -302,15 +304,17 @@ export const RaceReports: React.FC = () => {
             <span>Historial</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => navigate(`/admin/race-results/${raceId}`)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
-            title="Gestionar resultados oficiales de la carrera"
-          >
-            <Trophy className="w-4 h-4 text-amber-600" />
-            <span>Cargar Resultados</span>
-          </button>
+          {user?.rol === 'superadmin' && (
+            <button
+              type="button"
+              onClick={() => navigate(`/admin/race-results/${raceId}`)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl shadow-2xs transition-colors cursor-pointer"
+              title="Gestionar resultados oficiales de la carrera"
+            >
+              <Trophy className="w-4 h-4 text-amber-600" />
+              <span>Cargar Resultados</span>
+            </button>
+          )}
 
           <button
             type="button"
