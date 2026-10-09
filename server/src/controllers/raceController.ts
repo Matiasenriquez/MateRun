@@ -107,11 +107,11 @@ export const getRaceById = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Regla de Visibilidad: Si la carrera está 'Oculta', solo el SuperAdmin puede acceder
-    if (race.visibilidad === 'Oculta' && userRole !== 'superadmin') {
+    // Regla de Visibilidad y Estado: Solo SuperAdmin puede acceder a carreras Ocultas o Finalizadas
+    if (userRole !== 'superadmin' && (race.visibilidad === 'Oculta' || (userRole === 'admin' && race.estado === 'finalizada'))) {
       res.status(404).json({
         error: 'Carrera no disponible',
-        message: 'Esta carrera no se encuentra disponible',
+        message: 'Esta carrera no se encuentra disponible para su gestión operativa',
       });
       return;
     }

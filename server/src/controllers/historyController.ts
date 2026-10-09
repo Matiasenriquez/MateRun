@@ -36,6 +36,15 @@ export const getRaceHistory = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    // Regla de Visibilidad y Estado: Si la carrera está Oculta o Finalizada y el usuario no es SuperAdmin, denegar acceso
+    if ((race.visibilidad === 'Oculta' || (req.user?.rol === 'admin' && race.estado === 'finalizada')) && req.user?.rol !== 'superadmin') {
+      res.status(404).json({
+        error: 'Carrera no disponible',
+        message: 'Esta carrera no se encuentra disponible para su consulta',
+      });
+      return;
+    }
+
     // 1. CUADRO IZQUIERDO: Corredores Acreditados
     const accreditedRunners = await Registration.find({
       carrera: raceId,

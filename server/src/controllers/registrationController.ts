@@ -638,11 +638,11 @@ export const getRegistrationsByRace = async (req: Request, res: Response): Promi
       return;
     }
 
-    // Regla de Visibilidad: Si la carrera está Oculta y el usuario no es SuperAdmin, denegar acceso
-    if (race.visibilidad === 'Oculta' && req.user?.rol !== 'superadmin') {
+    // Regla de Visibilidad y Estado: Si la carrera está Oculta o Finalizada y el usuario no es SuperAdmin, denegar acceso
+    if ((race.visibilidad === 'Oculta' || (req.user?.rol === 'admin' && race.estado === 'finalizada')) && req.user?.rol !== 'superadmin') {
       res.status(404).json({
         error: 'Carrera no disponible',
-        message: 'Esta carrera se encuentra oculta y no está disponible para administración',
+        message: 'Esta carrera no se encuentra disponible para su gestión operativa',
       });
       return;
     }
@@ -747,6 +747,16 @@ export const updateAccreditationStatus = async (req: Request, res: Response): Pr
     const registration = await Registration.findById(id);
     if (!registration) {
       res.status(404).json({ error: 'Inscripción no encontrada' });
+      return;
+    }
+
+    // Regla de Visibilidad y Estado: Un admin no puede modificar acreditaciones en carreras Ocultas o Finalizadas
+    const race = await Race.findById(registration.carrera);
+    if (race && req.user?.rol !== 'superadmin' && (race.visibilidad === 'Oculta' || (req.user?.rol === 'admin' && race.estado === 'finalizada'))) {
+      res.status(403).json({
+        error: 'Operación no permitida',
+        message: 'No es posible modificar estados en carreras finalizadas u ocultas',
+      });
       return;
     }
 

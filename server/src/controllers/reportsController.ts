@@ -68,11 +68,11 @@ export const getRaceReports = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Regla de Visibilidad: Si está Oculta y no es SuperAdmin, restringir
-    if (race.visibilidad === 'Oculta' && req.user?.rol !== 'superadmin') {
+    // Regla de Visibilidad y Estado: Si está Oculta o Finalizada y no es SuperAdmin, restringir
+    if (req.user?.rol !== 'superadmin' && (race.visibilidad === 'Oculta' || (req.user?.rol === 'admin' && race.estado === 'finalizada'))) {
       res.status(404).json({
         error: 'Carrera no disponible',
-        message: 'Esta carrera se encuentra oculta y no está disponible para informes',
+        message: 'Esta carrera no se encuentra disponible para informes',
       });
       return;
     }
