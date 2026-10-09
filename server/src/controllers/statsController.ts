@@ -29,6 +29,7 @@ export const getRunnerStats = async (req: Request, res: Response): Promise<void>
     // Si se especifica un userId en los parámetros de ruta, se utiliza ese;
     // de lo contrario se toma el ID del usuario actualmente autenticado
     const targetUserId = req.params.userId || req.user?.id;
+    const { distancia } = req.query;
 
     if (!targetUserId) {
       res.status(401).json({ error: 'No autorizado' });
@@ -36,23 +37,36 @@ export const getRunnerStats = async (req: Request, res: Response): Promise<void>
     }
 
     // Buscar todos los resultados de carreras del corredor ordenados por fecha descendente
-    const raceResults = await RaceResult.find({ corredor: targetUserId }).sort({ fecha: -1 });
+    const allRaceResults = await RaceResult.find({ corredor: targetUserId }).sort({ fecha: -1 });
+
+    // Extraer todas las distancias únicas en las que ha participado el corredor
+    const distanciasDisponibles = Array.from(
+      new Set(allRaceResults.map((r) => r.distancia).filter((d) => typeof d === 'number' && d > 0))
+    ).sort((a, b) => a - b);
 
     // Si el corredor no tiene carreras registradas aún, retornar valores neutros
-    if (!raceResults || raceResults.length === 0) {
+    if (!allRaceResults || allRaceResults.length === 0) {
       res.status(200).json({
         results: [],
+        distanciasDisponibles: [],
         stats: {
           totalCarreras: 0,
-          distanciaPromedio: 0,
-          tiempoPromedioFormateado: '00:00:00',
-          tiempoPromedioSegundos: 0,
-          mejorTiempoFormateado: '00:00:00',
-          mejorTiempoSegundos: 0,
+          distanciaPromedio: null,
+          tiempoPromedioFormateado: null,
+          tiempoPromedioSegundos: null,
+          mejorTiempoFormateado: null,
+          mejorTiempoSegundos: null,
           carreraMejorTiempo: 'Sin registros',
         },
       });
       return;
+    }
+
+    // Filtrar por distancia si se especifica en la query
+    let raceResults = allRaceResults;
+    if (distancia && typeof distancia === 'string' && distancia !== 'todas' && !isNaN(Number(distancia))) {
+      const distNum = Number(distancia);
+      raceResults = allRaceResults.filter((r) => r.distancia === distNum);
     }
 
     // --------------------------------------------------------------------------
@@ -61,13 +75,15 @@ export const getRunnerStats = async (req: Request, res: Response): Promise<void>
     const totalCarreras = raceResults.length;
 
     // 1. Distancia promedio en km (solo carreras con distancia válida registrada)
-    const validDistances = raceResults.filter(r => typeof r.distancia === 'number' && r.distancia > 0);
+    const validDistances = raceResults.filter((r) => typeof r.distancia === 'number' && r.distancia > 0);
     const distanciaPromedio = validDistances.length > 0
       ? Number((validDistances.reduce((acc, curr) => acc + curr.distancia, 0) / validDistances.length).toFixed(1))
       : null;
 
-    // 2. Tiempo promedio y mejor tiempo (solo carreras con tiempo oficial cargado)
-    const validTimes = raceResults.filter(r => typeof r.tiempoSegundos === 'number' && r.tiempoSegundos > 0);
+    // 2. Tiempo promedio y mejor tiempo (solo carreras con tiempo oficial cargado y no descalificadas)
+    const validTimes = raceResults.filter(
+      (r) => !r.descalificado && typeof r.tiempoSegundos === 'number' && r.tiempoSegundos > 0
+    );
     let tiempoPromedioSegundos: number | null = null;
     let tiempoPromedioFormateado: string | null = null;
     let mejorTiempoSegundos: number | null = null;
@@ -104,10 +120,12 @@ export const getRunnerStats = async (req: Request, res: Response): Promise<void>
       posicionCategoria: r.posicionCategoria ?? null,
       posicionSexo: r.posicionSexo ?? null,
       categoria: r.categoria ?? null,
+      descalificado: r.descalificado || false,
     }));
 
     res.status(200).json({
       results: formattedResults,
+      distanciasDisponibles,
       stats: {
         totalCarreras,
         distanciaPromedio,
