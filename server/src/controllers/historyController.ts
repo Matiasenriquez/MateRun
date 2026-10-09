@@ -151,31 +151,3 @@ export const getRaceHistory = async (req: Request, res: Response): Promise<void>
   }
 };
 
-export const getRecentAuditHistory = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const auditLogs = await AuditLog.find()
-      .populate('usuarioResponsable', 'nombre apellido')
-      .populate('carrera', 'nombre distancias')
-      .sort({ fecha: -1 })
-      .limit(20);
-
-    const history = auditLogs.map(log => {
-      const carreraObj: any = log.carrera || {};
-      const descParts = log.descripcion.split(' (Dorsal #');
-      const namePart = descParts[0].split(': ')[1] || '';
-      
-      return {
-        fecha: log.fecha,
-        corredorNombre: namePart.split(' (DNI')[0],
-        carreraNombre: carreraObj.nombre || 'Desconocida',
-        dorsal: log.detalles?.dorsal || '-',
-        estadoFinal: log.tipo,
-        accion: log.descripcion
-      };
-    });
-
-    res.status(200).json({ history });
-  } catch (error: any) {
-    res.status(500).json({ error: 'Error de servidor', message: error.message });
-  }
-};
