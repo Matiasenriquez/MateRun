@@ -844,6 +844,13 @@ export const updateRegistration = async (req: Request, res: Response): Promise<v
     }
 
     const race = await Race.findById(registration.carrera);
+    if (race && req.user?.rol !== 'superadmin' && (race.visibilidad === 'Oculta' || (req.user?.rol === 'admin' && race.estado === 'finalizada'))) {
+      res.status(403).json({
+        error: 'Operación no permitida',
+        message: 'No es posible modificar inscripciones en carreras finalizadas u ocultas',
+      });
+      return;
+    }
 
     const cambios: Array<{ campo: string; etiqueta: string; valorAnterior: any; nuevoValor: any }> = [];
 
@@ -1094,6 +1101,15 @@ export const deleteRegistration = async (req: Request, res: Response): Promise<v
     const registration = await Registration.findById(id);
     if (!registration) {
       res.status(404).json({ error: 'Inscripción no encontrada' });
+      return;
+    }
+
+    const race = await Race.findById(registration.carrera);
+    if (race && req.user?.rol !== 'superadmin' && (race.visibilidad === 'Oculta' || (req.user?.rol === 'admin' && race.estado === 'finalizada'))) {
+      res.status(403).json({
+        error: 'Operación no permitida',
+        message: 'No es posible dar de baja inscripciones en carreras finalizadas u ocultas',
+      });
       return;
     }
 
