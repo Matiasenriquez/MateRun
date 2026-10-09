@@ -243,8 +243,8 @@ export const MyStats: React.FC = () => {
         </div>
       </div>
 
-      {/* Grid de 4 Tarjetas de Métricas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Grid de Tarjetas de Métricas */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${selectedDistancia === 'todas' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4`}>
         {/* Carreras Corridas */}
         <div className="card-panel bg-white border-l-4 border-l-machine flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
@@ -256,24 +256,26 @@ export const MyStats: React.FC = () => {
           </div>
         </div>
 
-        {/* Distancia Promedio */}
-        <div className="card-panel bg-white border-l-4 border-l-machine flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
-            <Map className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-xs font-bold uppercase text-slate-400 tracking-wider">Distancia Promedio</p>
-            <div className="mt-0.5">
-              {computedStats.distanciaPromedio != null ? (
-                <p className="text-2xl font-black text-slate-800">
-                  {computedStats.distanciaPromedio} <span className="text-sm font-semibold text-slate-500">km</span>
-                </p>
-              ) : (
-                renderPendingBadge()
-              )}
+        {/* Distancia Promedio (Solo visible cuando se selecciona 'todas') */}
+        {selectedDistancia === 'todas' && (
+          <div className="card-panel bg-white border-l-4 border-l-machine flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-400">
+              <Map className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase text-slate-400 tracking-wider">Distancia Promedio</p>
+              <div className="mt-0.5">
+                {computedStats.distanciaPromedio != null ? (
+                  <p className="text-2xl font-black text-slate-800">
+                    {computedStats.distanciaPromedio} <span className="text-sm font-semibold text-slate-500">km</span>
+                  </p>
+                ) : (
+                  renderPendingBadge()
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Mejor Tiempo */}
         <div className="card-panel bg-white border-l-4 border-l-machine flex items-center gap-4">
